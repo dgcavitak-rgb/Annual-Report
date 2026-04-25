@@ -1,0 +1,4053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cavitak Sales Review · Portfolio P&L Tool</title>
+
+<!-- SheetJS for CSV/XLSX parsing (read side; write side comes in Phase 4) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Dexie for IndexedDB -->
+<script src="https://cdn.jsdelivr.net/npm/dexie@3.2.7/dist/dexie.min.js"></script>
+<!-- Chart.js for dashboard visualizations -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  /* ============================================================
+     Cavitak Sales Review — Phase 1
+     Indigo–violet design grammar, consistent with BrightSign /
+     tvONE selector apps. Calibri-equivalent system stack.
+     ============================================================ */
+
+  :root {
+    --bg-0: #0F0E1A;            /* page background */
+    --bg-1: #1A1830;            /* card background */
+    --bg-2: #232041;            /* elevated card */
+    --bg-3: #2D2952;
+    --line: #312E81;
+    --line-soft: #3F3B73;
+
+    --indigo-deep: #1E1B4B;
+    --indigo:      #312E81;
+    --indigo-mid:  #4338CA;
+    --indigo-bright: #6366F1;
+    --violet:      #7C3AED;
+    --lavender:    #C7D2FE;
+    --lavender-pale: #EEF2FF;
+
+    --green: #10B981;
+    --amber: #F59E0B;
+    --red:   #EF4444;
+
+    --text-0: #F5F3FF;          /* primary text */
+    --text-1: #C7D2FE;          /* secondary */
+    --text-2: #8B86B8;          /* tertiary / labels */
+    --text-3: #5B5680;          /* muted */
+
+    --radius: 12px;
+    --radius-sm: 8px;
+
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --mono: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background:
+      radial-gradient(ellipse at top left, rgba(99,102,241,0.08), transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(124,58,237,0.06), transparent 50%),
+      var(--bg-0);
+    color: var(--text-0);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ====== Layout shell ====== */
+  .app {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  /* ====== Header ====== */
+  header.top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 32px;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .brand-block { display: flex; flex-direction: column; gap: 6px; }
+  .brand-mark {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 13px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--lavender);
+  }
+  .brand-mark::before {
+    content: ''; width: 8px; height: 8px; border-radius: 2px;
+    background: linear-gradient(135deg, var(--indigo-bright), var(--violet));
+    box-shadow: 0 0 12px rgba(99,102,241,0.6);
+  }
+  h1.title {
+    margin: 0;
+    font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff, #C7D2FE);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .tagline { color: var(--text-2); font-size: 13px; }
+  .meta-stat {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg-1); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; color: var(--text-1);
+  }
+  .meta-stat strong { color: var(--text-0); font-weight: 600; }
+  .meta-stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ====== Tabs ====== */
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-1);
+    padding: 4px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    margin-bottom: 24px;
+    width: fit-content;
+  }
+  .tab-btn {
+    padding: 10px 18px;
+    border: none;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tab-btn:hover { color: var(--text-0); }
+  .tab-btn.active {
+    background: linear-gradient(135deg, var(--indigo), var(--indigo-mid));
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(67,56,202,0.4);
+  }
+  .tab-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+  /* ====== Cards ====== */
+  .card {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 16px; font-weight: 600;
+    color: var(--text-0);
+  }
+  .card .sub {
+    color: var(--text-2); font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  /* ====== Drop zone ====== */
+  .dropzone {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--bg-2);
+  }
+  .dropzone:hover {
+    border-color: var(--indigo-bright);
+    background: rgba(99,102,241,0.05);
+  }
+  .dropzone.dragover {
+    border-color: var(--violet);
+    background: rgba(124,58,237,0.10);
+  }
+  .dropzone .dz-icon {
+    font-size: 36px;
+    background: linear-gradient(135deg, var(--indigo-bright), var(--violet));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .dropzone .dz-title {
+    font-size: 16px; font-weight: 600; margin-top: 12px;
+    color: var(--text-0);
+  }
+  .dropzone .dz-hint {
+    font-size: 13px; color: var(--text-2); margin-top: 4px;
+  }
+  .dropzone input { display: none; }
+
+  /* ====== Buttons ====== */
+  .btn {
+    padding: 10px 18px;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+    color: var(--text-0);
+    font: inherit; font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { background: var(--bg-3); border-color: var(--line-soft); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--indigo), var(--indigo-mid));
+    border-color: var(--indigo-mid);
+    color: #fff;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--indigo-mid), var(--violet));
+    box-shadow: 0 4px 16px rgba(124,58,237,0.4);
+  }
+  .btn-danger { color: #FCA5A5; border-color: rgba(239,68,68,0.4); }
+  .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--red); color: #fff; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ====== Stat tiles ====== */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .stat-tile {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+  }
+  .stat-tile .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-2); font-weight: 500;
+  }
+  .stat-tile .value {
+    font-size: 22px; font-weight: 700;
+    color: var(--text-0); margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-tile .sub {
+    font-size: 12px; color: var(--text-2); margin-top: 2px;
+  }
+
+  /* ====== Tables ====== */
+  table.records {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.records th, table.records td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  table.records th {
+    background: var(--bg-2);
+    color: var(--text-1);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    position: sticky; top: 0;
+  }
+  table.records tr:hover td { background: rgba(99,102,241,0.05); }
+  table.records td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  table.records .pill {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500;
+  }
+  .pill-bs   { background: rgba(99,102,241,0.18); color: #A5B4FC; }
+  .pill-tv   { background: rgba(124,58,237,0.18); color: #C4B5FD; }
+  .pill-gh   { background: rgba(16,185,129,0.18);  color: #6EE7B7; }
+  .pill-ot   { background: rgba(139,134,184,0.18); color: var(--text-2); }
+  .pill-demo { background: rgba(245,158,11,0.18);  color: #FCD34D; }
+  .pill-adj  { background: rgba(239,68,68,0.18);   color: #FCA5A5; }
+
+  .records-wrap {
+    max-height: 480px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--bg-1);
+  }
+
+  /* ====== Filter row ====== */
+  .filter-row {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;
+    align-items: center;
+  }
+  .filter-row input[type=text],
+  .filter-row select {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    color: var(--text-0);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font: inherit; font-size: 13px;
+    min-width: 140px;
+  }
+  .filter-row input[type=text]:focus,
+  .filter-row select:focus {
+    outline: none; border-color: var(--indigo-bright);
+  }
+  .filter-row .count {
+    margin-left: auto; color: var(--text-2); font-size: 13px;
+  }
+
+  /* ====== Toast / banner ====== */
+  .banner {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--indigo-bright);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .banner.success { border-left-color: var(--green); }
+  .banner.warn    { border-left-color: var(--amber); }
+  .banner.error   { border-left-color: var(--red); }
+  .banner h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .banner p  { margin: 0; color: var(--text-1); }
+  .banner .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px; margin-top: 10px;
+  }
+  .banner .sg-item {
+    background: var(--bg-1); padding: 8px 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+  }
+  .banner .sg-item .lbl { font-size: 11px; color: var(--text-2); }
+  .banner .sg-item .val { font-size: 16px; font-weight: 700; color: var(--text-0); }
+
+  /* ====== Empty state ====== */
+  .empty {
+    text-align: center; padding: 48px 24px; color: var(--text-2);
+  }
+  .empty .ico { font-size: 36px; opacity: 0.4; margin-bottom: 8px; }
+
+  /* ====== Footer ====== */
+  footer.bottom {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--text-3); font-size: 12px;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+
+  /* ====== Modal ====== */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(15,14,26,0.85);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal-bg.hidden { display: none; }
+  .modal {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 28px;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  }
+  .modal h3 { margin: 0 0 8px; font-size: 18px; }
+  .modal p  { color: var(--text-1); margin: 0 0 16px; }
+  .modal input {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    color: var(--text-0); border-radius: var(--radius-sm);
+    font: inherit; margin-bottom: 16px;
+  }
+  .modal-row { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ====== Misc ====== */
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .text-muted { color: var(--text-2); }
+  .text-soft  { color: var(--text-1); }
+  .hidden { display: none !important; }
+
+  details.unmapped {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-top: 12px;
+  }
+  details.unmapped summary {
+    cursor: pointer; font-weight: 500; color: var(--amber);
+  }
+  details.unmapped pre {
+    margin: 8px 0 0; font-size: 12px; color: var(--text-1);
+    white-space: pre-wrap;
+  }
+
+  /* ====== Sub-tabs (within Targets) ====== */
+  .subtabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
+  }
+  .subtab-btn {
+    padding: 10px 16px;
+    border: none; background: transparent;
+    color: var(--text-2); font: inherit;
+    font-weight: 500; font-size: 13px;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+  }
+  .subtab-btn:hover { color: var(--text-0); }
+  .subtab-btn.active {
+    color: var(--text-0);
+    border-bottom-color: var(--indigo-bright);
+  }
+
+  /* ====== Holder modal ====== */
+  .modal-wide { max-width: 560px; }
+  .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field-group label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-2); font-weight: 500;
+  }
+  .field-group input,
+  .field-group select,
+  .field-group textarea {
+    background: var(--bg-2); border: 1px solid var(--line);
+    color: var(--text-0); padding: 9px 12px; border-radius: 8px;
+    font: inherit; font-size: 13px;
+  }
+  .field-group input:focus,
+  .field-group select:focus,
+  .field-group textarea:focus {
+    outline: none; border-color: var(--indigo-bright);
+  }
+  .field-group textarea { resize: vertical; min-height: 56px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* Brand checkbox group */
+  .brand-checks { display: flex; gap: 10px; flex-wrap: wrap; }
+  .brand-check {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    transition: all 0.12s ease; user-select: none;
+    font-size: 13px;
+  }
+  .brand-check:hover { border-color: var(--line-soft); }
+  .brand-check input { accent-color: var(--indigo-bright); }
+  .brand-check.checked {
+    border-color: var(--indigo-bright);
+    background: rgba(99,102,241,0.15);
+    color: var(--text-0);
+  }
+
+  /* ====== Target matrix ====== */
+  table.matrix {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.matrix th, table.matrix td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    border-right: 1px solid var(--line-soft);
+  }
+  table.matrix th {
+    background: var(--bg-2);
+    color: var(--text-1); font-weight: 600;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    text-align: center;
+    position: sticky; top: 0; z-index: 2;
+  }
+  table.matrix th.left { text-align: left; }
+  table.matrix .scope-row {
+    background: rgba(99,102,241,0.06);
+  }
+  table.matrix .scope-row.portfolio {
+    background: rgba(124,58,237,0.10);
+    font-weight: 600;
+  }
+  table.matrix .scope-row.bu-row {
+    background: rgba(99,102,241,0.10);
+    border-top: 1px solid var(--indigo-bright);
+  }
+  table.matrix .scope-row.bu-row td {
+    border-bottom-color: var(--indigo);
+  }
+  table.matrix td.scope-cell {
+    color: var(--text-1);
+    font-weight: 500;
+  }
+  table.matrix td.holder-cell {
+    color: var(--text-1);
+  }
+  table.matrix td.brand-cell .pill { font-size: 11px; }
+
+  /* Editable cell */
+  .tcell {
+    position: relative;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--mono);
+    cursor: text;
+    min-width: 90px;
+    padding: 4px 8px !important;
+    transition: background 0.1s ease;
+  }
+  .tcell:hover { background: rgba(99,102,241,0.08); }
+  .tcell.has-value { color: var(--text-0); }
+  .tcell.suggested { color: var(--text-3); font-style: italic; }
+  .tcell.warn { background: rgba(245,158,11,0.10); }
+  .tcell input {
+    width: 100%;
+    background: var(--bg-3);
+    border: 1px solid var(--indigo-bright);
+    color: var(--text-0);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font: inherit;
+    font-family: var(--mono);
+    text-align: right;
+    outline: none;
+  }
+
+  /* Status pill in matrix */
+  .pill-tbd { background: rgba(245,158,11,0.18); color: #FCD34D; }
+  .pill-off { background: rgba(16,185,129,0.18); color: #6EE7B7; }
+  .pill-rev { background: rgba(99,102,241,0.18); color: #A5B4FC; }
+
+  /* Warn dot beside cell */
+  .warn-tag {
+    display: inline-block;
+    background: rgba(245,158,11,0.18);
+    color: #FCD34D;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    margin-left: 4px;
+    font-family: var(--font);
+  }
+
+  /* Holder list */
+  .holder-brand-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+  .holder-row.inactive { opacity: 0.4; }
+
+  /* ====== Dashboard styling ====== */
+  .kpi-row-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-2);
+    font-weight: 600;
+    margin: 8px 0 8px 4px;
+  }
+  .kpi-row { gap: 10px !important; }
+
+  .btn-mode {
+    transition: all 0.15s ease;
+  }
+  .btn-mode.active {
+    background: var(--indigo-mid) !important;
+    color: #fff !important;
+  }
+  .btn-mode:not(.active):hover {
+    background: var(--bg-3) !important;
+    color: var(--text-1) !important;
+  }
+  .kpi-tile {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-tile::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--indigo-bright), var(--violet));
+    opacity: 0.6;
+  }
+  .kpi-tile.green::before { background: linear-gradient(90deg, var(--green), #34D399); }
+  .kpi-tile.amber::before { background: linear-gradient(90deg, var(--amber), #FCD34D); }
+  .kpi-tile.red::before   { background: linear-gradient(90deg, var(--red), #FCA5A5); }
+  .kpi-tile.muted::before { background: var(--text-3); }
+
+  .kpi-tile .kpi-label {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-2);
+    font-weight: 500;
+  }
+  .kpi-tile .kpi-value {
+    font-size: 24px; font-weight: 700;
+    color: var(--text-0); margin-top: 6px;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-tile .kpi-sub {
+    font-size: 12px; color: var(--text-2);
+    margin-top: 4px;
+    min-height: 1.4em;
+  }
+  .kpi-delta { font-weight: 600; }
+  .delta-up   { color: #6EE7B7; }
+  .delta-down { color: #FCA5A5; }
+  .delta-flat { color: #FCD34D; }
+
+  /* Brand matrix */
+  table.brand-matrix {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.brand-matrix th {
+    text-align: left; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--text-2); font-weight: 600;
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+  }
+  table.brand-matrix th.num { text-align: right; }
+  table.brand-matrix td {
+    padding: 12px; border-bottom: 1px solid var(--line-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  table.brand-matrix td.num { text-align: right; font-family: var(--mono); }
+  table.brand-matrix tr.row-portfolio {
+    background: rgba(124,58,237,0.10);
+    font-weight: 600;
+  }
+  table.brand-matrix tr.row-portfolio td { border-top: 1px solid var(--violet); }
+
+  .achv-bar {
+    display: inline-block;
+    width: 100px; height: 8px;
+    background: var(--bg-3);
+    border-radius: 4px; overflow: hidden;
+    vertical-align: middle; margin-right: 8px;
+  }
+  .achv-bar-fill { height: 100%; transition: width 0.3s ease; }
+  .achv-fill-green { background: linear-gradient(90deg, #10B981, #34D399); }
+  .achv-fill-amber { background: linear-gradient(90deg, #F59E0B, #FCD34D); }
+  .achv-fill-red   { background: linear-gradient(90deg, #DC2626, #F87171); }
+
+  /* Status emoji used in matrix */
+  .status-icon { font-size: 14px; vertical-align: middle; }
+
+  /* Hierarchy view */
+  .hierarchy-card {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  .hierarchy-card.bu-head { border-color: var(--indigo-bright); background: rgba(99,102,241,0.06); }
+  .hierarchy-card .hh-name { font-weight: 600; color: var(--text-0); font-size: 14px; }
+  .hierarchy-card .hh-meta { font-size: 12px; color: var(--text-2); }
+  .hierarchy-card .hh-revenue {
+    font-size: 16px; font-weight: 700; color: var(--text-0);
+    font-variant-numeric: tabular-nums; font-family: var(--mono);
+  }
+  .hh-bar {
+    width: 100%; height: 6px;
+    background: var(--bg-3);
+    border-radius: 3px; margin-top: 8px; overflow: hidden;
+  }
+  .hh-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--indigo-bright), var(--violet));
+  }
+  .hh-children {
+    margin-top: 12px; padding-left: 24px;
+    border-left: 2px solid var(--line-soft);
+    display: grid; gap: 8px;
+  }
+  .hh-child-row {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 13px; color: var(--text-1);
+  }
+  .hh-child-name { flex: 1; }
+  .hh-child-pct {
+    font-size: 11px; color: var(--text-2);
+    width: 50px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .hh-child-rev {
+    font-family: var(--mono); width: 100px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .hh-child-bar {
+    flex: 0 0 120px; height: 4px;
+    background: var(--bg-3); border-radius: 2px; overflow: hidden;
+  }
+  .hh-child-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--indigo-bright), var(--violet));
+    opacity: 0.7;
+  }
+
+  /* Compact top-N tables */
+  table.top-n {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  table.top-n th {
+    text-align: left; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-2); font-weight: 600;
+    padding: 8px; border-bottom: 1px solid var(--line);
+  }
+  table.top-n th.num { text-align: right; }
+  table.top-n td {
+    padding: 8px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  table.top-n td.num { text-align: right; font-family: var(--mono);
+                      font-variant-numeric: tabular-nums; }
+  table.top-n tr:hover td { background: rgba(99,102,241,0.05); }
+  table.top-n .rank {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--bg-3);
+    color: var(--text-1);
+    border-radius: 50%; text-align: center;
+    line-height: 22px; font-weight: 600;
+    font-size: 11px;
+  }
+  table.top-n tr:nth-child(1) .rank { background: linear-gradient(135deg, #FDE68A, #F59E0B); color: #78350F; }
+  table.top-n tr:nth-child(2) .rank { background: linear-gradient(135deg, #E5E7EB, #9CA3AF); color: #1F2937; }
+  table.top-n tr:nth-child(3) .rank { background: linear-gradient(135deg, #FED7AA, #C2410C); color: #FFF; }
+
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- ============= HEADER ============= -->
+  <header class="top">
+    <div class="brand-block">
+      <span class="brand-mark">Cavitak · Portfolio P&L</span>
+      <h1 class="title">Sales Review Tool</h1>
+      <span class="tagline">BrightSign · tvONE · Green Hippo &nbsp;·&nbsp; FY-aware analytics &nbsp;·&nbsp; <span class="mono">v0.6 — Phase 3.6 (YoY + Repeat)</span></span>
+    </div>
+    <div class="meta-stat-row" id="hdrStats">
+      <span class="meta-stat"><span>Records:</span> <strong id="metaRecCount">0</strong></span>
+      <span class="meta-stat"><span>FY range:</span> <strong id="metaFyRange">—</strong></span>
+      <span class="meta-stat"><span>Last upload:</span> <strong id="metaLastUpload">—</strong></span>
+    </div>
+  </header>
+
+  <!-- ============= TABS ============= -->
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="upload">Upload &amp; Database</button>
+    <button class="tab-btn" data-tab="records">Browse Records</button>
+    <button class="tab-btn" data-tab="settings">Backup &amp; Settings</button>
+    <button class="tab-btn" data-tab="targets">Targets</button>
+    <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+  </nav>
+
+  <!-- ============= TAB: Upload ============= -->
+  <section class="tab-panel" id="tab-upload">
+
+    <div class="card">
+      <h2>Upload SAP Sales Export</h2>
+      <div class="sub">Drop a CSV or XLSX file. Duplicate rows are detected by fingerprint and skipped automatically. Footer rows (Total, filter notes) are ignored.</div>
+
+      <div class="dropzone" id="dz">
+        <div class="dz-icon">⬆</div>
+        <div class="dz-title">Drop file here</div>
+        <div class="dz-hint">or click to browse · accepts <span class="mono">.csv</span> / <span class="mono">.xlsx</span></div>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+      </div>
+
+      <div id="importResult"></div>
+    </div>
+
+    <div class="card">
+      <h2>Database Status</h2>
+      <div class="sub">Records persist locally in your browser (IndexedDB). Use Backup &amp; Settings to export a portable JSON snapshot.</div>
+
+      <div class="stat-grid" id="dbStats"></div>
+    </div>
+
+  </section>
+
+  <!-- ============= TAB: Records ============= -->
+  <section class="tab-panel hidden" id="tab-records">
+    <div class="card">
+      <h2>Imported Records</h2>
+      <div class="sub">Scan the data the app has derived from your uploads. Use this to validate brand attribution, FY assignment, state parsing, etc., before moving to Phase 2.</div>
+
+      <div class="filter-row">
+        <input type="text" id="rSearch" placeholder="Search customer, product, invoice...">
+        <select id="rBrand"><option value="">All brands</option></select>
+        <select id="rFY"><option value="">All FYs</option></select>
+        <select id="rState"><option value="">All states</option></select>
+        <select id="rDemoAdj">
+          <option value="all">Include demo & adj.</option>
+          <option value="exclude" selected>Exclude demo & adj.</option>
+          <option value="onlyDemo">Only demo</option>
+          <option value="onlyAdj">Only adjustments</option>
+        </select>
+        <span class="count" id="rCount">0 records</span>
+      </div>
+
+      <div class="records-wrap">
+        <table class="records" id="rTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>FY · Q · M</th>
+              <th>Brand</th>
+              <th>Model</th>
+              <th>Customer</th>
+              <th>State</th>
+              <th>Sales Rep</th>
+              <th class="num">Qty</th>
+              <th class="num">Net Value (₹)</th>
+              <th>Invoice</th>
+              <th>Flags</th>
+            </tr>
+          </thead>
+          <tbody id="rBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= TAB: Targets ============= -->
+  <section class="tab-panel hidden" id="tab-targets">
+
+    <!-- Sub-tab nav -->
+    <div class="subtabs">
+      <button class="subtab-btn active" data-subtab="holders">Target Holders</button>
+      <button class="subtab-btn" data-subtab="matrix">Targets Matrix</button>
+    </div>
+
+    <!-- ============= SUB: Holders ============= -->
+    <div class="subtab-panel" id="sub-holders">
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:8px">
+          <div>
+            <h2>Target Holders</h2>
+            <div class="sub" style="margin-bottom:0">People who carry brand-level targets — Sales reps, BU heads, RSMs, Product Managers. Add them here first; assign targets in the next sub-tab.</div>
+          </div>
+          <button class="btn btn-primary" id="btnAddHolder">＋ Add holder</button>
+        </div>
+
+        <div class="records-wrap" style="max-height:520px;margin-top:16px">
+          <table class="records" id="hTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Brands carried</th>
+                <th>Region</th>
+                <th>Reports to</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th style="width:120px"></th>
+              </tr>
+            </thead>
+            <tbody id="hBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============= SUB: Matrix ============= -->
+    <div class="subtab-panel hidden" id="sub-matrix">
+
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+          <div>
+            <h2>Targets Matrix</h2>
+            <div class="sub" style="margin-bottom:0">Annual + Half + Quarterly targets per scope. Type Annual; H1/H2/Q1–Q4 auto-suggest. Override any cell. Numbers entered in Lakh, stored in INR. Blank fields ⇒ status TBD.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label class="text-muted" style="font-size:12px">Fiscal Year</label>
+            <select id="tFY" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-0);padding:8px 12px;border-radius:8px;font:inherit;font-size:13px"></select>
+            <button class="btn" id="btnRebuildMatrix" title="Recreate target rows for this FY based on current holders & brands">↻ Rebuild rows</button>
+          </div>
+        </div>
+
+        <div id="tMatrixWrap"></div>
+
+        <div class="banner" style="margin-top:16px;border-left-color:var(--indigo-bright)">
+          <div style="flex:1">
+            <h3>How auto-derivation works</h3>
+            <p>
+              Type the <strong>Annual</strong> figure first. The app fills H1/H2 (50/50) and Q1–Q4 (25/25/25/25) as <em>suggestions</em> shown in muted text. Click any suggested cell to accept its value; or just type your own to override. If you make Q1+Q2 ≠ H1, an inline ⚠ shows the gap so you can reconcile. Status flips to <strong>Official</strong> once all 7 fields have user-entered values; otherwise stays <strong>TBD</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============= TAB: Dashboard ============= -->
+  <section class="tab-panel hidden" id="tab-dashboard">
+
+    <!-- Filter bar -->
+    <div class="card" style="padding:16px 24px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <strong style="font-size:13px;color:var(--text-1);margin-right:4px">Scope:</strong>
+
+        <div style="display:flex;gap:6px;align-items:center">
+          <label class="text-muted" style="font-size:12px">FY</label>
+          <select id="dFY" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-0);padding:6px 10px;border-radius:6px;font:inherit;font-size:13px"></select>
+        </div>
+
+        <!-- Mode toggle -->
+        <div style="display:flex;gap:0;align-items:center;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:2px">
+          <button class="btn-mode active" data-mode="ytd" style="padding:4px 10px;border:none;background:var(--indigo-mid);color:#fff;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">YTD</button>
+          <button class="btn-mode" data-mode="range" style="padding:4px 10px;border:none;background:transparent;color:var(--text-2);border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Range</button>
+        </div>
+
+        <div id="dYtdControls" style="display:flex;gap:6px;align-items:center">
+          <label class="text-muted" style="font-size:12px">As of</label>
+          <input type="date" id="dAsOf" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-0);padding:6px 10px;border-radius:6px;font:inherit;font-size:13px">
+        </div>
+
+        <div id="dRangeControls" style="display:none;gap:6px;align-items:center">
+          <label class="text-muted" style="font-size:12px">From</label>
+          <input type="date" id="dFrom" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-0);padding:6px 10px;border-radius:6px;font:inherit;font-size:13px">
+          <label class="text-muted" style="font-size:12px">To</label>
+          <input type="date" id="dTo" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-0);padding:6px 10px;border-radius:6px;font:inherit;font-size:13px">
+        </div>
+
+        <div style="display:flex;gap:6px;align-items:center">
+          <label class="text-muted" style="font-size:12px">Brand</label>
+          <select id="dBrand" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text-0);padding:6px 10px;border-radius:6px;font:inherit;font-size:13px">
+            <option value="">All brands (combined)</option>
+            <option value="BrightSign">BrightSign</option>
+            <option value="tvONE">tvONE</option>
+            <option value="Green Hippo">Green Hippo</option>
+          </select>
+        </div>
+
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-1);cursor:pointer">
+          <input type="checkbox" id="dExcludeDemo" checked style="accent-color:var(--indigo-bright)">
+          Exclude demo &amp; adjustments
+        </label>
+
+        <button class="btn" id="btnRefreshDash" style="margin-left:auto;padding:6px 12px;font-size:12px">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- Row 1 — Headline KPIs -->
+    <div class="kpi-row-label">Headline</div>
+    <div class="stat-grid kpi-row" id="dKpisRow1" style="margin-bottom:12px"></div>
+
+    <!-- Row 2 — Brand health KPIs -->
+    <div class="kpi-row-label">Brand health</div>
+    <div class="stat-grid kpi-row" id="dKpisRow2" style="margin-bottom:12px"></div>
+
+    <!-- Row 3 — Composition & quality KPIs -->
+    <div class="kpi-row-label">Composition &amp; quality</div>
+    <div class="stat-grid kpi-row" id="dKpisRow3" style="margin-bottom:24px"></div>
+
+    <!-- Brand performance matrix -->
+    <div class="card">
+      <h2>Brand Performance · Target vs Actual</h2>
+      <div class="sub">Where each brand sits against its FY target. Pace = linear pro-rate by months elapsed. Run-rate = annualized projection at current pace.</div>
+      <div id="dBrandMatrix"></div>
+    </div>
+
+    <!-- Monthly trend chart -->
+    <div class="card">
+      <h2>Monthly Revenue Trend</h2>
+      <div class="sub">FY revenue by month with 3-month rolling average and run-rate trajectory.</div>
+      <div style="height:280px;margin-top:8px"><canvas id="dMonthlyChart"></canvas></div>
+    </div>
+
+    <!-- Two columns: Top customers + Top products -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="card" style="margin-bottom:0">
+        <h2>Top 10 Customers</h2>
+        <div class="sub">By revenue in the selected scope.</div>
+        <div id="dTopCustomers"></div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <h2>Top 10 Products</h2>
+        <div class="sub">By revenue. Brand-tagged.</div>
+        <div id="dTopProducts"></div>
+      </div>
+    </div>
+
+    <!-- BU Hierarchy view -->
+    <div class="card" style="margin-top:20px">
+      <h2>BU Hierarchy · Actual contribution</h2>
+      <div class="sub">Each BU Head's actual revenue with their reports' contributions broken down. Note: matching is by exact sales-rep name in SAP — see Settings if names don't align.</div>
+      <div id="dHierarchy"></div>
+    </div>
+
+    <!-- Customer flow (replaces YoY watchlist) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+      <div class="card" style="margin-bottom:0">
+        <h2 style="color:#6EE7B7">▲ Customers Gained</h2>
+        <div class="sub">First-time buyers in the selected scope (no prior purchases on record).</div>
+        <div id="dGained"></div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <h2 style="color:#FCD34D">⏸ Gone Quiet</h2>
+        <div class="sub">Customers who bought in the prior 90 days but nothing in the last 90 days. Watch for re-engagement.</div>
+        <div id="dQuiet"></div>
+      </div>
+    </div>
+
+    <!-- Customer Loyalty Profile (frequency table) -->
+    <div class="card" style="margin-top:20px">
+      <h2>Customer Loyalty Profile</h2>
+      <div class="sub">How often customers in the selected scope have come back. Buckets are based on unique invoice count per customer within the scope.</div>
+      <div id="dLoyalty"></div>
+    </div>
+
+  </section>
+
+  <section class="tab-panel hidden" id="tab-settings">
+
+    <div class="card">
+      <h2>Backup &amp; Restore</h2>
+      <div class="sub">Export your full database to a single <span class="mono">.json</span> file. Keep it in OneDrive / Google Drive — survives laptop wipes, browser changes, schema upgrades.</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnExport">⬇ Export database (JSON)</button>
+        <label class="btn">
+          ⬆ Import database (JSON)
+          <input type="file" id="importJsonFile" accept=".json" style="display:none">
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Schema &amp; Diagnostics</h2>
+      <div class="sub">Information about how the app processes your data.</div>
+      <div class="stat-grid" id="diagStats"></div>
+    </div>
+
+    <div class="card">
+      <h2>Reset Database</h2>
+      <div class="sub">Permanently deletes all imported records. Use this if you want to start fresh — does NOT delete your JSON backups.</div>
+      <button class="btn btn-danger" id="btnWipe">Wipe Database…</button>
+    </div>
+
+  </section>
+
+  <footer class="bottom">
+    <div>Cavitak Sales Review · Built for Dipenkumar Gajjar · Personal Portfolio P&amp;L Tool</div>
+    <div class="mono">v0.6 · Phase 3.6 (YoY + Repeat-customer)</div>
+  </footer>
+</div>
+
+<!-- ============= WIPE MODAL ============= -->
+<div class="modal-bg hidden" id="wipeModal">
+  <div class="modal">
+    <h3>Wipe entire database?</h3>
+    <p>This will permanently delete all <strong id="wipeCount">0</strong> records. This action cannot be undone. Type <span class="mono">WIPE</span> to confirm.</p>
+    <input type="text" id="wipeConfirm" placeholder="Type WIPE to confirm" autocomplete="off">
+    <div class="modal-row">
+      <button class="btn" id="wipeCancel">Cancel</button>
+      <button class="btn btn-danger" id="wipeOk" disabled>Confirm Wipe</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============= HOLDER MODAL ============= -->
+<div class="modal-bg hidden" id="holderModal">
+  <div class="modal modal-wide">
+    <h3 id="holderModalTitle">Add target holder</h3>
+    <p>Define a person who carries brand-level targets. They don't need to be a sales rep — BU heads, RSMs, and product managers all qualify.</p>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label>Full name *</label>
+        <input type="text" id="hName" placeholder="e.g., Paresh Pramod Sagdeo" autocomplete="off">
+      </div>
+      <div class="field-group">
+        <label>Role *</label>
+        <input type="text" id="hRole" list="roleList" placeholder="Sales Person / BU Head / RSM…" autocomplete="off">
+        <datalist id="roleList"></datalist>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Brands carried *</label>
+      <div class="brand-checks" id="hBrandChecks"></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label>Region</label>
+        <input type="text" id="hRegion" placeholder="e.g., West & Central, North, Mumbai, MP/CG/RJ" autocomplete="off">
+      </div>
+      <div class="field-group">
+        <label>Reports to</label>
+        <select id="hReportsTo">
+          <option value="">— None (top-level / BU Head)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Status</label>
+      <select id="hActive" style="max-width:200px">
+        <option value="true" selected>Active</option>
+        <option value="false">Inactive</option>
+      </select>
+    </div>
+
+    <div class="field-group">
+      <label>Notes (optional)</label>
+      <textarea id="hNotes" placeholder="Reporting line, team, anything to remember…"></textarea>
+    </div>
+
+    <div class="modal-row">
+      <button class="btn" id="hCancel">Cancel</button>
+      <button class="btn btn-danger" id="hDelete" style="display:none">Delete</button>
+      <button class="btn btn-primary" id="hSave">Save holder</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Cavitak Sales Review — Phase 1 logic
+   Single-file vanilla JS. No build, no framework.
+   ============================================================ */
+
+// ============= 1. DATABASE (Dexie / IndexedDB) =============
+const db = new Dexie('CavitakSalesReview');
+db.version(1).stores({
+  sales: '++id, &fingerprint, postingDate, fiscalYear, fiscalQuarter, brand, productLine, customerClean, stateCode, salesEmp, isDemo, isAdjustment, sourceFile, uploadedAt, schemaVersion',
+  unmapped: '++id, &itemNo, itemDesc, firstSeenAt'
+});
+// v2: add target-holder management + targets table
+db.version(2).stores({
+  sales: '++id, &fingerprint, postingDate, fiscalYear, fiscalQuarter, brand, productLine, customerClean, stateCode, salesEmp, isDemo, isAdjustment, sourceFile, uploadedAt, schemaVersion',
+  unmapped: '++id, &itemNo, itemDesc, firstSeenAt',
+  holders: '++id, fullName, role, isActive, createdAt',
+  targets: '++id, fiscalYear, scope, scopeKey, holderId, status, updatedAt, [fiscalYear+scope+scopeKey]'
+});
+// v3: holders gain reportsTo (manager) + region; targets gain bu+brand scope
+db.version(3).stores({
+  sales: '++id, &fingerprint, postingDate, fiscalYear, fiscalQuarter, brand, productLine, customerClean, stateCode, salesEmp, isDemo, isAdjustment, sourceFile, uploadedAt, schemaVersion',
+  unmapped: '++id, &itemNo, itemDesc, firstSeenAt',
+  holders: '++id, fullName, role, isActive, reportsTo, region, createdAt',
+  targets: '++id, fiscalYear, scope, scopeKey, holderId, status, updatedAt, [fiscalYear+scope+scopeKey]'
+}).upgrade(tx => {
+  // existing holders: ensure reportsTo and region keys exist (null is fine)
+  return tx.table('holders').toCollection().modify(h => {
+    if (h.reportsTo === undefined) h.reportsTo = null;
+    if (h.region === undefined) h.region = '';
+  });
+});
+
+const SCHEMA_VERSION = 3;
+const BRANDS = ['BrightSign', 'tvONE', 'Green Hippo'];
+const ROLE_PRESETS = ['Sales Person', 'BU Head', 'RSM', 'Product Manager'];
+const DEFAULT_TARGET_FY = 'FY26-27';
+const ROLLUP_TOLERANCE_PCT = 5;   // ±5% match between BU target and sum of reports
+
+// Pre-seed roster — runs once if no holders exist yet (or merges with existing).
+const SEED_ROSTER = [
+  { fullName: 'Shashank Tiwari',     role: 'BU Head',     region: 'West & Central (incl. Gujarat — TBD)', reportsToName: null,            brands: BRANDS },
+  { fullName: 'Arvind Sahu',         role: 'Sales Person', region: 'MP, CG, RJ',                            reportsToName: 'Shashank Tiwari', brands: BRANDS },
+  { fullName: 'Tariq [TBD]',         role: 'Sales Person', region: 'Mumbai',                                reportsToName: 'Shashank Tiwari', brands: BRANDS },
+  { fullName: 'Vedang [TBD]',        role: 'Sales Person', region: 'Mumbai',                                reportsToName: 'Shashank Tiwari', brands: BRANDS },
+  { fullName: 'Prathamesh [TBD]',    role: 'Sales Person', region: 'Pune',                                  reportsToName: 'Shashank Tiwari', brands: BRANDS },
+  { fullName: 'Niket [TBD]',         role: 'BU Head',     region: 'North',                                  reportsToName: null,            brands: BRANDS },
+  { fullName: 'Faiz [TBD]',          role: 'Sales Person', region: 'North',                                 reportsToName: 'Niket [TBD]',   brands: BRANDS }
+];
+
+// ============= 2. STATE CODE MAP (Indian states + UTs) =============
+const STATE_MAP = {
+  'AP':'Andhra Pradesh','AR':'Arunachal Pradesh','AS':'Assam','BR':'Bihar','CG':'Chhattisgarh',
+  'GA':'Goa','GJ':'Gujarat','HR':'Haryana','HP':'Himachal Pradesh','JH':'Jharkhand',
+  'KA':'Karnataka','KL':'Kerala','MP':'Madhya Pradesh','MH':'Maharashtra','MN':'Manipur',
+  'ML':'Meghalaya','MZ':'Mizoram','NL':'Nagaland','OD':'Odisha','OR':'Odisha',
+  'PB':'Punjab','RJ':'Rajasthan','SK':'Sikkim','TN':'Tamil Nadu','TS':'Telangana',
+  'TR':'Tripura','UP':'Uttar Pradesh','UK':'Uttarakhand','UT':'Uttarakhand','WB':'West Bengal',
+  'AN':'Andaman & Nicobar','CH':'Chandigarh','DN':'Dadra & Nagar Haveli','DD':'Daman & Diu',
+  'DL':'Delhi','JK':'Jammu & Kashmir','LA':'Ladakh','LD':'Lakshadweep','PY':'Puducherry'
+};
+
+// ============= 3. FINGERPRINT (SHA-256 → hex) =============
+async function sha256Hex(str) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ============= 4. DERIVATIONS =============
+
+// Brand from item description prefix
+function deriveBrand(desc) {
+  if (!desc) return 'Other';
+  const u = String(desc).toUpperCase();
+  if (u.startsWith('BRIGHTSIGN'))  return 'BrightSign';
+  if (u.startsWith('TVONE'))        return 'tvONE';
+  if (u.startsWith('GREEN HIPPO'))  return 'Green Hippo';
+  return 'Other';
+}
+
+// Product line within a brand
+function deriveProductLine(desc) {
+  if (!desc) return 'Unknown';
+  const u = String(desc).toUpperCase();
+  if (u.includes('SIGNAGE PLAYER')) return 'Signage Player';
+  if (u.includes('VIDEO PROCESSOR')) return 'Video Processor';
+  if (u.includes('MEDIA SERVER'))    return 'Media Server';
+  if (u.includes('ACCESSORIES'))     return 'Accessories';
+  if (u.includes('SOFTWARE'))        return 'Software';
+  if (u.includes('RATE DIFFERENCE')) return 'Adjustment';
+  return 'Other';
+}
+
+// Model name — text after the last hyphen in the leading product token
+// Examples:
+//   "BRIGHTSIGN SIGNAGE PLAYER-XT1145"  → "XT1145"
+//   "TVONE VIDEO PROCESSOR-C7-PRO-2200" → "C7-PRO-2200"
+//   "TVONE ACCESSORIES-C7-PRO-2U-FILTER-FF" → "C7-PRO-2U-FILTER-FF"
+//   "BRIGHTSIGN SIGNAGE PLAYER-LS445 - Demo" → "LS445"  (demo suffix stripped)
+function deriveModel(desc) {
+  if (!desc) return '';
+  let s = String(desc).trim();
+  // strip " - Demo" suffix if present
+  s = s.replace(/\s*-\s*Demo\s*$/i, '');
+  // split on first hyphen between PROD-CATEGORY and the model
+  // categories: PRODUCTS, SIGNAGE PLAYER, VIDEO PROCESSOR, MEDIA SERVER, ACCESSORIES, SOFTWARE
+  const m = s.match(/^[A-Z ]+?(?:PRODUCTS|PLAYER|PROCESSOR|SERVER|ACCESSORIES|SOFTWARE)-(.+)$/i);
+  if (m) return m[1].trim();
+  // fallback: take everything after first hyphen
+  const idx = s.indexOf('-');
+  return idx >= 0 ? s.slice(idx + 1).trim() : s;
+}
+
+// Demo / adjustment flags
+function isDemoLine(desc) { return /\bdemo\b/i.test(String(desc || '')); }
+function isAdjustmentLine(desc) {
+  return /rate\s+difference/i.test(String(desc || '')) ||
+         /adjustment/i.test(String(desc || ''));
+}
+
+// Customer parser — splits "CompanyName-MH-SI-R" into parts.
+// Format observed: <Company>-<StateCode>-<PartnerType>-<Channel>
+// We're conservative: only parse if the suffix tokens look right.
+function parseCustomer(raw) {
+  if (!raw) return { clean: '', stateCode: '', stateName: '', partnerType: '', channel: '' };
+  const s = String(raw).trim();
+  const parts = s.split('-');
+  // Walk from the right collecting up to 3 short tokens that look like state/type/channel
+  // Heuristic: a state code is 2 uppercase letters present in STATE_MAP
+  let stateCode = '', partnerType = '', channel = '';
+  let suffixCount = 0;
+
+  // try last 3 tokens: channel, partnerType, stateCode
+  if (parts.length >= 4) {
+    const t1 = parts[parts.length - 1].trim(); // channel
+    const t2 = parts[parts.length - 2].trim(); // partnerType
+    const t3 = parts[parts.length - 3].trim(); // stateCode
+
+    if (STATE_MAP[t3?.toUpperCase()] && t1.length <= 3 && t2.length <= 4) {
+      stateCode = t3.toUpperCase();
+      partnerType = t2.toUpperCase();
+      channel = t1.toUpperCase();
+      suffixCount = 3;
+    }
+  }
+  // try last 2 tokens: partnerType, stateCode
+  if (!suffixCount && parts.length >= 3) {
+    const t1 = parts[parts.length - 1].trim();
+    const t2 = parts[parts.length - 2].trim();
+    if (STATE_MAP[t2?.toUpperCase()] && t1.length <= 4) {
+      stateCode = t2.toUpperCase();
+      partnerType = t1.toUpperCase();
+      suffixCount = 2;
+    }
+  }
+  // try last 1 token: stateCode only
+  if (!suffixCount && parts.length >= 2) {
+    const t1 = parts[parts.length - 1].trim();
+    if (STATE_MAP[t1?.toUpperCase()]) {
+      stateCode = t1.toUpperCase();
+      suffixCount = 1;
+    }
+  }
+  const clean = suffixCount ? parts.slice(0, parts.length - suffixCount).join('-').trim() : s;
+  return {
+    clean,
+    stateCode,
+    stateName: STATE_MAP[stateCode] || '',
+    partnerType,
+    channel
+  };
+}
+
+// Indian Fiscal Year: April N → March N+1, called "FYNN-NN+1"
+function deriveFY(date) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = d.getMonth(); // 0 = Jan
+  const fyStart = m >= 3 ? y : y - 1;            // Apr or later → current year is start
+  const fyLabel = `FY${String(fyStart).slice(2)}-${String(fyStart + 1).slice(2)}`;
+  // Fiscal month idx: April = 1, ..., March = 12
+  const fiscalMonthIdx = ((m - 3 + 12) % 12) + 1;
+  const monthNames = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+  const fiscalMonthName = monthNames[fiscalMonthIdx - 1];
+  // Quarters: Q1=Apr-Jun (1,2,3); Q2=Jul-Sep (4,5,6); Q3=Oct-Dec (7,8,9); Q4=Jan-Mar (10,11,12)
+  const fiscalQuarter = 'Q' + (Math.ceil(fiscalMonthIdx / 3));
+  return { fiscalYear: fyLabel, fiscalQuarter, fiscalMonthIdx, fiscalMonthName };
+}
+
+// ============= 5. ROW NORMALIZER =============
+
+// Tolerant header lookup — tries multiple candidate names
+function pick(row, ...candidates) {
+  for (const k of candidates) {
+    if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+    // case-insensitive lookup
+    const found = Object.keys(row).find(kk => kk.toLowerCase().trim() === k.toLowerCase().trim());
+    if (found && row[found] !== undefined && row[found] !== null && row[found] !== '') return row[found];
+  }
+  return null;
+}
+
+function toNumber(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const s = String(v).replace(/[,\s]/g, '').replace(/[^\d.\-]/g, '');
+  if (!s) return null;
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+
+function toISODate(v) {
+  if (!v) return null;
+  // Excel/JS Date object
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return null;
+    return v.toISOString().slice(0, 10);
+  }
+  // Numeric: Excel serial date
+  if (typeof v === 'number') {
+    // Excel epoch 1899-12-30
+    const ms = (v - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0, 10);
+  }
+  // String: try various formats
+  const s = String(v).trim();
+  // YYYY-MM-DD
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
+  m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+  if (m) {
+    const dd = m[1].padStart(2, '0');
+    const mm = m[2].padStart(2, '0');
+    let yy = m[3];
+    if (yy.length === 2) yy = (parseInt(yy) > 50 ? '19' : '20') + yy;
+    return `${yy}-${mm}-${dd}`;
+  }
+  // last try: native Date parsing
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return null;
+}
+
+// Normalize one raw SAP row into our canonical schema (or null if footer/garbage)
+function normalizeRow(raw, sourceFile) {
+  const dateRaw = pick(raw, 'Posting Date', 'PostingDate', 'Date');
+  const isoDate = toISODate(dateRaw);
+  if (!isoDate) return null; // footer rows die here
+
+  const docNum   = pick(raw, 'Document Number', 'DocumentNumber', 'Invoice', 'Invoice No.', 'Doc#');
+  const itemNo   = pick(raw, 'Item No.', 'ItemNo', 'Item Number', 'Material Code');
+  const itemDesc = pick(raw, 'Item Description', 'ItemDescription', 'Material Description', 'Description');
+  const qty      = toNumber(pick(raw, 'Quantity', 'Qty'));
+  const salesLakh = toNumber(pick(raw, 'Sales (Lakh)', 'SalesLakh'));
+  const netVal   = toNumber(pick(raw, 'Row_Total_After_Discount', 'Net Value', 'Net Amount', 'Amount'));
+
+  const customerRaw = String(pick(raw, 'Customer Name', 'CustomerName', 'Customer') || '').trim();
+  const salesEmp    = String(pick(raw, 'Sales Emp. Name', 'SalesEmp', 'Sales Employee', 'Sales Rep') || '').trim();
+  const bpRef       = String(pick(raw, 'BP Ref. No.', 'BPRefNo', 'PO Number', 'Customer PO') || '').trim();
+  const rsm         = String(pick(raw, 'Company RSM', 'RSM') || '').trim();
+  const productSubGroup = String(pick(raw, 'Product Sub Group', 'ProductSubGroup', 'Sub Group') || '').trim();
+  const customerProject = String(pick(raw, 'Customer Project Name', 'CustomerProject', 'Project Name') || '').trim();
+
+  // Derivations
+  const brand = deriveBrand(itemDesc);
+  const productLine = deriveProductLine(itemDesc);
+  const productModel = deriveModel(itemDesc);
+  const customer = parseCustomer(customerRaw);
+  const fy = deriveFY(isoDate);
+  const isDemo = isDemoLine(itemDesc);
+  const isAdjustment = isAdjustmentLine(itemDesc);
+
+  // Build fingerprint payload — must be deterministic and stable
+  const fpPayload = [
+    isoDate,
+    String(docNum || ''),
+    String(itemNo || ''),
+    String(qty ?? ''),
+    String(netVal ?? '')
+  ].join('|');
+
+  return {
+    // raw
+    postingDate: isoDate,
+    docNumber: String(docNum || ''),
+    itemNo: String(itemNo || ''),
+    itemDesc: String(itemDesc || ''),
+    quantity: qty,
+    salesLakh,
+    netValueINR: netVal,
+    customerRaw,
+    salesEmp,
+    bpRef,
+    rsm: rsm === 'Not Applicable' ? '' : rsm,
+    productSubGroup: productSubGroup === 'Not Applicable' ? '' : productSubGroup,
+    customerProject,
+    // derived
+    brand,
+    productLine,
+    productModel,
+    customerClean: customer.clean,
+    stateCode: customer.stateCode,
+    stateName: customer.stateName,
+    partnerType: customer.partnerType,
+    channel: customer.channel,
+    isDemo,
+    isAdjustment,
+    fiscalYear: fy.fiscalYear,
+    fiscalQuarter: fy.fiscalQuarter,
+    fiscalMonthIdx: fy.fiscalMonthIdx,
+    fiscalMonthName: fy.fiscalMonthName,
+    // metadata
+    sourceFile,
+    uploadedAt: new Date().toISOString(),
+    schemaVersion: SCHEMA_VERSION,
+    _fpPayload: fpPayload
+  };
+}
+
+// ============= 6. FILE PARSERS =============
+
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(fr.error);
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+async function parseFile(file) {
+  const buf = await readFileAsArrayBuffer(file);
+  // SheetJS auto-detects CSV vs XLSX
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const firstSheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[firstSheetName];
+  // Use defval:null so missing cells don't trip pick()
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
+  return { sheetName: firstSheetName, rows };
+}
+
+// ============= 7. IMPORT PIPELINE =============
+
+async function importFile(file) {
+  const startedAt = performance.now();
+  const banner = (cls, html) => {
+    document.getElementById('importResult').innerHTML =
+      `<div class="banner ${cls}">${html}</div>`;
+  };
+
+  banner('', `<div><h3>Reading <span class="mono">${escapeHTML(file.name)}</span>…</h3>
+              <p class="text-muted">Parsing file, extracting rows.</p></div>`);
+
+  let parsed;
+  try {
+    parsed = await parseFile(file);
+  } catch (e) {
+    banner('error', `<div><h3>Could not read file</h3>
+                     <p>${escapeHTML(e.message || String(e))}</p></div>`);
+    return;
+  }
+
+  const totalRows = parsed.rows.length;
+  let normalized = [];
+  let skippedFooter = 0;
+  for (const raw of parsed.rows) {
+    const r = normalizeRow(raw, file.name);
+    if (!r) { skippedFooter++; continue; }
+    normalized.push(r);
+  }
+
+  // Compute fingerprints (async)
+  for (const r of normalized) {
+    r.fingerprint = await sha256Hex(r._fpPayload);
+    delete r._fpPayload;
+  }
+
+  // Dedupe vs DB
+  let inserted = 0, duplicates = 0, errors = 0;
+  const unmappedSet = new Map(); // itemNo → itemDesc
+
+  await db.transaction('rw', db.sales, db.unmapped, async () => {
+    for (const r of normalized) {
+      try {
+        const existing = await db.sales.where('fingerprint').equals(r.fingerprint).first();
+        if (existing) { duplicates++; continue; }
+        await db.sales.add(r);
+        inserted++;
+        if (r.brand === 'Other' && r.itemNo) {
+          unmappedSet.set(r.itemNo, r.itemDesc);
+        }
+      } catch (e) {
+        errors++;
+        console.error('Insert error', e, r);
+      }
+    }
+    // Add unmapped queue (idempotent — won't fail on dupes)
+    for (const [itemNo, itemDesc] of unmappedSet.entries()) {
+      try {
+        const existing = await db.unmapped.where('itemNo').equals(itemNo).first();
+        if (!existing) {
+          await db.unmapped.add({ itemNo, itemDesc, firstSeenAt: new Date().toISOString() });
+        }
+      } catch (e) { /* ignore */ }
+    }
+  });
+
+  const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
+  const unmappedCount = unmappedSet.size;
+
+  // Build the unmapped <details> section if anything found
+  let unmappedHTML = '';
+  if (unmappedCount > 0) {
+    const list = [...unmappedSet.entries()]
+      .map(([no, desc]) => `${no}  ·  ${desc || '(no description)'}`).join('\n');
+    unmappedHTML = `<details class="unmapped">
+      <summary>⚠ ${unmappedCount} unmapped item code${unmappedCount > 1 ? 's' : ''} — review</summary>
+      <pre>${escapeHTML(list)}</pre>
+      <p class="text-muted" style="margin-top:8px;font-size:12px">
+        These items couldn't be matched to BrightSign / tvONE / Green Hippo via Item Description.
+        They were imported with brand = "Other". Investigate the descriptions and update derivation rules in Phase 2 if needed.
+      </p>
+    </details>`;
+  }
+
+  banner('success', `
+    <div style="flex:1">
+      <h3>Import complete · <span class="mono text-soft">${escapeHTML(file.name)}</span></h3>
+      <p class="text-muted">Processed in ${elapsed}s</p>
+      <div class="summary-grid">
+        <div class="sg-item"><div class="lbl">Total rows in file</div><div class="val">${totalRows}</div></div>
+        <div class="sg-item"><div class="lbl">Footer rows skipped</div><div class="val">${skippedFooter}</div></div>
+        <div class="sg-item"><div class="lbl">New records imported</div><div class="val" style="color:var(--green)">${inserted}</div></div>
+        <div class="sg-item"><div class="lbl">Duplicates skipped</div><div class="val" style="color:var(--text-2)">${duplicates}</div></div>
+        <div class="sg-item"><div class="lbl">Unmapped items</div><div class="val" style="color:${unmappedCount ? 'var(--amber)' : 'var(--text-2)'}">${unmappedCount}</div></div>
+        <div class="sg-item"><div class="lbl">Errors</div><div class="val" style="color:${errors ? 'var(--red)' : 'var(--text-2)'}">${errors}</div></div>
+      </div>
+      ${unmappedHTML}
+    </div>
+  `);
+
+  await renderDbStats();
+  await renderRecordsTable();
+  await renderHeaderStats();
+}
+
+// ============= 8. RENDERERS =============
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// Indian-style ₹ formatter — lakh/crore aware
+function fmtINR(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const sign = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  if (a >= 1e7) return `${sign}₹${(a/1e7).toFixed(2)} Cr`;
+  if (a >= 1e5) return `${sign}₹${(a/1e5).toFixed(2)} L`;
+  return `${sign}₹${a.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
+function fmtINRFull(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+function fmtNum(n, dec = 0) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+async function renderHeaderStats() {
+  const count = await db.sales.count();
+  document.getElementById('metaRecCount').textContent = count.toLocaleString('en-IN');
+
+  if (count === 0) {
+    document.getElementById('metaFyRange').textContent = '—';
+    document.getElementById('metaLastUpload').textContent = '—';
+    return;
+  }
+  const fys = new Set();
+  let latest = '';
+  await db.sales.each(r => {
+    fys.add(r.fiscalYear);
+    if (r.uploadedAt > latest) latest = r.uploadedAt;
+  });
+  const fyArr = [...fys].sort();
+  document.getElementById('metaFyRange').textContent =
+    fyArr.length ? (fyArr.length === 1 ? fyArr[0] : `${fyArr[0]} → ${fyArr[fyArr.length-1]}`) : '—';
+  if (latest) {
+    const d = new Date(latest);
+    document.getElementById('metaLastUpload').textContent = d.toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  }
+}
+
+async function renderDbStats() {
+  const total = await db.sales.count();
+  const stats = document.getElementById('dbStats');
+  if (total === 0) {
+    stats.innerHTML = `<div class="stat-tile" style="grid-column: 1 / -1; text-align: center;">
+      <div class="empty">
+        <div class="ico">⌬</div>
+        <div>No records imported yet. Drop a SAP export above to begin.</div>
+      </div>
+    </div>`;
+    return;
+  }
+
+  // Compute aggregates by walking once
+  const byBrand = {};
+  const byFY = {};
+  let totalValue = 0, totalQty = 0, demoCount = 0, adjCount = 0;
+  let unmappedRecs = 0;
+  await db.sales.each(r => {
+    byBrand[r.brand] = (byBrand[r.brand] || 0) + 1;
+    byFY[r.fiscalYear] = (byFY[r.fiscalYear] || 0) + (r.netValueINR || 0);
+    totalValue += (r.netValueINR || 0);
+    totalQty += (r.quantity || 0);
+    if (r.isDemo) demoCount++;
+    if (r.isAdjustment) adjCount++;
+    if (r.brand === 'Other') unmappedRecs++;
+  });
+
+  const brandHTML = ['BrightSign','tvONE','Green Hippo','Other']
+    .filter(b => byBrand[b])
+    .map(b => `${b}: <strong>${byBrand[b]}</strong>`).join(' · ');
+
+  const fyHTML = Object.entries(byFY).sort()
+    .map(([fy, v]) => `${fy}: <strong>${fmtINR(v)}</strong>`).join(' · ');
+
+  stats.innerHTML = `
+    <div class="stat-tile">
+      <div class="label">Total records</div>
+      <div class="value">${total.toLocaleString('en-IN')}</div>
+      <div class="sub">across all uploads</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Total revenue (gross)</div>
+      <div class="value">${fmtINR(totalValue)}</div>
+      <div class="sub">${fmtINRFull(totalValue)} · ${totalQty.toLocaleString('en-IN')} units · incl. demo/adj.</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">By brand (record count)</div>
+      <div class="value" style="font-size:14px;line-height:1.5">${brandHTML || '—'}</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">By fiscal year (revenue)</div>
+      <div class="value" style="font-size:14px;line-height:1.5">${fyHTML || '—'}</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Demo records</div>
+      <div class="value">${demoCount}</div>
+      <div class="sub">flagged isDemo = true</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Adjustment records</div>
+      <div class="value">${adjCount}</div>
+      <div class="sub">rate diff. / credit notes</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Unmapped items</div>
+      <div class="value" style="color:${unmappedRecs ? 'var(--amber)' : 'var(--text-0)'}">${unmappedRecs}</div>
+      <div class="sub">brand = "Other"</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Schema version</div>
+      <div class="value">v${SCHEMA_VERSION}</div>
+      <div class="sub">in IndexedDB</div>
+    </div>
+  `;
+
+  // Diagnostics duplicates
+  document.getElementById('diagStats').innerHTML = stats.innerHTML;
+}
+
+let _allRecordsCache = null;
+async function loadRecords() {
+  _allRecordsCache = await db.sales.orderBy('postingDate').reverse().toArray();
+  return _allRecordsCache;
+}
+
+async function renderRecordsTable() {
+  const tbody = document.getElementById('rBody');
+  const records = await loadRecords();
+
+  // Populate filter dropdowns
+  const brands = [...new Set(records.map(r => r.brand))].filter(Boolean).sort();
+  const fys    = [...new Set(records.map(r => r.fiscalYear))].filter(Boolean).sort();
+  const states = [...new Set(records.map(r => r.stateName).filter(Boolean))].sort();
+  setSelectOptions('rBrand', brands, 'All brands');
+  setSelectOptions('rFY', fys, 'All FYs');
+  setSelectOptions('rState', states, 'All states');
+
+  applyRecordsFilter();
+}
+
+function setSelectOptions(id, opts, allLabel) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${allLabel}</option>` +
+    opts.map(o => `<option value="${escapeHTML(o)}">${escapeHTML(o)}</option>`).join('');
+  if (opts.includes(cur)) sel.value = cur;
+}
+
+function applyRecordsFilter() {
+  if (!_allRecordsCache) return;
+  const q = document.getElementById('rSearch').value.trim().toLowerCase();
+  const brand = document.getElementById('rBrand').value;
+  const fy    = document.getElementById('rFY').value;
+  const state = document.getElementById('rState').value;
+  const demoMode = document.getElementById('rDemoAdj').value;
+
+  const filtered = _allRecordsCache.filter(r => {
+    if (brand && r.brand !== brand) return false;
+    if (fy && r.fiscalYear !== fy) return false;
+    if (state && r.stateName !== state) return false;
+    if (demoMode === 'exclude' && (r.isDemo || r.isAdjustment)) return false;
+    if (demoMode === 'onlyDemo' && !r.isDemo) return false;
+    if (demoMode === 'onlyAdj' && !r.isAdjustment) return false;
+    if (q) {
+      const hay = [
+        r.customerClean, r.customerRaw, r.itemDesc, r.productModel, r.docNumber,
+        r.salesEmp, r.bpRef, r.stateName, r.customerProject
+      ].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('rCount').textContent =
+    `${filtered.length.toLocaleString('en-IN')} of ${_allRecordsCache.length.toLocaleString('en-IN')} records`;
+
+  const tbody = document.getElementById('rBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">No records match these filters.</td></tr>`;
+    return;
+  }
+
+  // Render — cap at 500 visible for perf
+  const cap = 500;
+  const slice = filtered.slice(0, cap);
+  tbody.innerHTML = slice.map(r => {
+    const brandCls = r.brand === 'BrightSign' ? 'pill-bs'
+                  : r.brand === 'tvONE' ? 'pill-tv'
+                  : r.brand === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+    const flags = [];
+    if (r.isDemo) flags.push(`<span class="pill pill-demo">demo</span>`);
+    if (r.isAdjustment) flags.push(`<span class="pill pill-adj">adj.</span>`);
+    return `<tr>
+      <td class="mono">${escapeHTML(r.postingDate)}</td>
+      <td class="mono text-muted">${escapeHTML(r.fiscalYear)} · ${escapeHTML(r.fiscalQuarter)} · ${escapeHTML(r.fiscalMonthName)}</td>
+      <td><span class="pill ${brandCls}">${escapeHTML(r.brand)}</span></td>
+      <td class="mono">${escapeHTML(r.productModel || '—')}</td>
+      <td title="${escapeHTML(r.customerRaw)}">${escapeHTML(r.customerClean || r.customerRaw)}</td>
+      <td>${escapeHTML(r.stateName || r.stateCode || '—')}</td>
+      <td>${escapeHTML(r.salesEmp || '—')}</td>
+      <td class="num">${fmtNum(r.quantity)}</td>
+      <td class="num">${fmtINRFull(r.netValueINR)}</td>
+      <td class="mono text-muted">${escapeHTML(r.docNumber || '—')}</td>
+      <td>${flags.join(' ') || '<span class="text-muted">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  if (filtered.length > cap) {
+    tbody.innerHTML += `<tr><td colspan="11" class="empty text-muted">
+      Showing first ${cap} of ${filtered.length} matching records — narrow your filters to see more.
+    </td></tr>`;
+  }
+}
+
+// ============= 9. BACKUP / RESTORE (v2 below at section 14) =============
+
+async function wipeDB() {
+  await db.sales.clear();
+  await db.unmapped.clear();
+  await db.holders.clear();
+  await db.targets.clear();
+  await renderDbStats();
+  await renderRecordsTable();
+  await renderHeaderStats();
+  await renderHolders();
+  await populateFYSelector();
+  await renderMatrix();
+  document.getElementById('importResult').innerHTML = '';
+}
+
+// ============= 11. HOLDERS (Phase 2) =============
+
+let _editingHolderId = null;
+
+// Seed the org roster on first run. Idempotent — won't duplicate.
+// Run before any holder UI renders so the matrix shows the org from boot 1.
+async function seedRosterIfNeeded() {
+  const existing = await db.holders.toArray();
+  // We only add MISSING names from the seed; we never modify existing user-edited holders.
+  const existingByName = {};
+  for (const h of existing) existingByName[h.fullName.toLowerCase()] = h;
+
+  const now = new Date().toISOString();
+  // Track IDs by name so we can wire reportsTo in pass 2
+  const idByName = {};
+  for (const h of existing) idByName[h.fullName] = h.id;
+
+  // Pass 1: insert any seed holders that don't exist yet
+  for (const seed of SEED_ROSTER) {
+    if (existingByName[seed.fullName.toLowerCase()]) {
+      continue; // already exists, leave alone
+    }
+    const newId = await db.holders.add({
+      fullName: seed.fullName,
+      role: seed.role,
+      brands: seed.brands,
+      region: seed.region,
+      reportsTo: null,         // will fix in pass 2
+      isActive: true,
+      notes: '',
+      createdAt: now,
+      updatedAt: now
+    });
+    idByName[seed.fullName] = newId;
+  }
+
+  // Pass 2: wire up reportsTo for any seeded holder (existing ones left alone if already set)
+  for (const seed of SEED_ROSTER) {
+    if (!seed.reportsToName) continue;
+    const myId = idByName[seed.fullName];
+    if (!myId) continue;
+    const mgrId = idByName[seed.reportsToName];
+    if (!mgrId) continue;
+    const me = await db.holders.get(myId);
+    if (me && (me.reportsTo === null || me.reportsTo === undefined)) {
+      await db.holders.update(myId, { reportsTo: mgrId, updatedAt: now });
+    }
+  }
+}
+
+async function openHolderModal(holder = null) {
+  _editingHolderId = holder?.id || null;
+  document.getElementById('holderModalTitle').textContent =
+    holder ? 'Edit target holder' : 'Add target holder';
+  document.getElementById('hName').value = holder?.fullName || '';
+  document.getElementById('hRole').value = holder?.role || '';
+  document.getElementById('hRegion').value = holder?.region || '';
+  document.getElementById('hActive').value = holder ? String(holder.isActive !== false) : 'true';
+  document.getElementById('hNotes').value = holder?.notes || '';
+
+  // Brand checkboxes
+  const wrap = document.getElementById('hBrandChecks');
+  const carried = new Set(holder?.brands || []);
+  wrap.innerHTML = BRANDS.map(b => `
+    <label class="brand-check ${carried.has(b) ? 'checked' : ''}">
+      <input type="checkbox" value="${b}" ${carried.has(b) ? 'checked' : ''}>
+      ${b}
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.brand-check').forEach(lab => {
+    lab.querySelector('input').addEventListener('change', e => {
+      lab.classList.toggle('checked', e.target.checked);
+    });
+  });
+
+  // Role autocomplete
+  document.getElementById('roleList').innerHTML =
+    ROLE_PRESETS.map(r => `<option value="${r}">`).join('');
+
+  // Reports-To dropdown — populate with all OTHER holders (can't report to self)
+  // Only BU Heads / RSMs / Product Managers should be eligible managers, but
+  // we leave this open and just exclude the current holder + cycle prevention.
+  const allHolders = await db.holders.toArray();
+  const candidates = allHolders.filter(h => h.id !== _editingHolderId);
+  // Detect which candidates would create a cycle if chosen as manager
+  const cyclic = new Set();
+  if (_editingHolderId) {
+    // anyone who reports (transitively) to this holder cannot be its manager
+    const descendantIds = new Set();
+    const collectDesc = (mid) => {
+      for (const h of allHolders) {
+        if (h.reportsTo === mid && !descendantIds.has(h.id)) {
+          descendantIds.add(h.id);
+          collectDesc(h.id);
+        }
+      }
+    };
+    collectDesc(_editingHolderId);
+    descendantIds.forEach(id => cyclic.add(id));
+  }
+  const sel = document.getElementById('hReportsTo');
+  sel.innerHTML = '<option value="">— None (top-level / BU Head)</option>' +
+    candidates.map(c => {
+      const disabled = cyclic.has(c.id) ? ' disabled' : '';
+      const lbl = cyclic.has(c.id) ? ` (would create cycle)` : '';
+      const role = c.role ? ` · ${c.role}` : '';
+      return `<option value="${c.id}"${disabled}>${escapeHTML(c.fullName)}${escapeHTML(role)}${lbl}</option>`;
+    }).join('');
+  sel.value = holder?.reportsTo ? String(holder.reportsTo) : '';
+
+  // Delete button only when editing
+  document.getElementById('hDelete').style.display = holder ? '' : 'none';
+
+  document.getElementById('holderModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('hName').focus(), 50);
+}
+
+function closeHolderModal() {
+  document.getElementById('holderModal').classList.add('hidden');
+  _editingHolderId = null;
+}
+
+async function saveHolderFromModal() {
+  const fullName = document.getElementById('hName').value.trim();
+  const role = document.getElementById('hRole').value.trim();
+  const region = document.getElementById('hRegion').value.trim();
+  const isActive = document.getElementById('hActive').value === 'true';
+  const notes = document.getElementById('hNotes').value.trim();
+  const brands = [...document.querySelectorAll('#hBrandChecks input:checked')].map(i => i.value);
+  const reportsToVal = document.getElementById('hReportsTo').value;
+  const reportsTo = reportsToVal === '' ? null : parseInt(reportsToVal);
+
+  if (!fullName) { alert('Full name is required.'); return; }
+  if (!role) { alert('Role is required.'); return; }
+  if (brands.length === 0) { alert('Select at least one brand carried.'); return; }
+
+  const now = new Date().toISOString();
+  if (_editingHolderId) {
+    await db.holders.update(_editingHolderId, {
+      fullName, role, brands, region, reportsTo, isActive, notes, updatedAt: now
+    });
+  } else {
+    await db.holders.add({
+      fullName, role, brands, region, reportsTo, isActive, notes,
+      createdAt: now, updatedAt: now
+    });
+  }
+  closeHolderModal();
+  await renderHolders();
+  await renderMatrix();   // matrix needs to know about new holders
+}
+
+async function deleteHolder() {
+  if (!_editingHolderId) return;
+  // Check for existing targets attached to this holder
+  const existingTargets = await db.targets.where('holderId').equals(_editingHolderId).count();
+  let msg = 'Delete this holder?';
+  if (existingTargets > 0) {
+    msg += `\n\n⚠ ${existingTargets} target row(s) are attached to this holder and will also be deleted.`;
+  }
+  if (!confirm(msg)) return;
+  await db.transaction('rw', db.holders, db.targets, async () => {
+    await db.targets.where('holderId').equals(_editingHolderId).delete();
+    await db.holders.delete(_editingHolderId);
+  });
+  closeHolderModal();
+  await renderHolders();
+  await renderMatrix();
+}
+
+async function renderHolders() {
+  const tbody = document.getElementById('hBody');
+  const holders = await db.holders.orderBy('fullName').toArray();
+  const holderMap = Object.fromEntries(holders.map(h => [h.id, h]));
+
+  if (holders.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">
+      <div class="ico">🎯</div>
+      <div>No target holders yet.</div>
+      <div style="margin-top:6px;font-size:13px">Click <strong>＋ Add holder</strong> above to define your first one.</div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = holders.map(h => {
+    const cls = h.isActive === false ? 'holder-row inactive' : 'holder-row';
+    const brandPills = (h.brands || []).map(b => {
+      const c = b === 'BrightSign' ? 'pill-bs'
+              : b === 'tvONE' ? 'pill-tv'
+              : b === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+      return `<span class="pill ${c}">${escapeHTML(b)}</span>`;
+    }).join(' ');
+    const mgr = h.reportsTo ? holderMap[h.reportsTo] : null;
+    const mgrLabel = mgr ? escapeHTML(mgr.fullName) : '<span class="text-muted">— top-level</span>';
+    return `<tr class="${cls}" data-id="${h.id}">
+      <td><strong>${escapeHTML(h.fullName)}</strong></td>
+      <td>${escapeHTML(h.role || '—')}</td>
+      <td><div class="holder-brand-pills">${brandPills || '<span class="text-muted">—</span>'}</div></td>
+      <td>${escapeHTML(h.region || '—')}</td>
+      <td>${mgrLabel}</td>
+      <td>${h.isActive === false
+            ? '<span class="pill pill-ot">Inactive</span>'
+            : '<span class="pill pill-gh">Active</span>'}</td>
+      <td class="text-muted" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHTML(h.notes || '')}">${escapeHTML(h.notes || '—')}</td>
+      <td><button class="btn" data-edit="${h.id}" style="padding:4px 10px;font-size:12px">✎ Edit</button></td>
+    </tr>`;
+  }).join('');
+
+  // Wire edit buttons
+  tbody.querySelectorAll('button[data-edit]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = parseInt(btn.dataset.edit);
+      const holder = await db.holders.get(id);
+      if (holder) openHolderModal(holder);
+    });
+  });
+}
+
+// ============= 12. TARGETS MATRIX (Phase 2) =============
+
+// Determine FYs we should offer in the matrix dropdown.
+// Always include DEFAULT_TARGET_FY plus any FY appearing in sales data.
+async function getAvailableFYs() {
+  const fys = new Set([DEFAULT_TARGET_FY]);
+  await db.sales.each(r => fys.add(r.fiscalYear));
+  await db.targets.each(t => fys.add(t.fiscalYear));
+  return [...fys].sort();
+}
+
+// Compute the rows that should exist for a given FY:
+//   1. Portfolio (always)
+//   2. One row per brand
+//   3. For each BU Head (active holder with at least one report) ×
+//      each brand they carry → one rollup ("bu+brand") row
+//   4. One row per (active holder × each brand they carry) — person+brand
+async function computeExpectedTargetRows(fy) {
+  const rows = [];
+  rows.push({ scope: 'portfolio', scopeKey: 'All', holderId: null });
+  for (const b of BRANDS) {
+    rows.push({ scope: 'brand', scopeKey: b, holderId: null });
+  }
+  const allHolders = await db.holders.toArray();
+  const activeHolders = allHolders.filter(h => h.isActive !== false)
+                                  .sort((a,b) => a.fullName.localeCompare(b.fullName));
+
+  // Identify managers (anyone who has at least one active report)
+  const reportsByMgrId = {};
+  for (const h of activeHolders) {
+    if (h.reportsTo) {
+      reportsByMgrId[h.reportsTo] = reportsByMgrId[h.reportsTo] || [];
+      reportsByMgrId[h.reportsTo].push(h);
+    }
+  }
+
+  // bu+brand rollup rows: one per (manager × brand they carry)
+  for (const h of activeHolders) {
+    if (reportsByMgrId[h.id] && reportsByMgrId[h.id].length > 0) {
+      for (const b of (h.brands || [])) {
+        rows.push({
+          scope: 'bu+brand',
+          scopeKey: `${h.fullName}|${b}`,
+          holderId: h.id
+        });
+      }
+    }
+  }
+
+  // person+brand rows for every active holder × brand
+  for (const h of activeHolders) {
+    for (const b of (h.brands || [])) {
+      rows.push({
+        scope: 'person+brand',
+        scopeKey: `${h.fullName}|${b}`,
+        holderId: h.id
+      });
+    }
+  }
+  return rows;
+}
+
+// Ensure target records exist for the expected rows (creates blanks if missing).
+async function ensureTargetRows(fy) {
+  const expected = await computeExpectedTargetRows(fy);
+  const now = new Date().toISOString();
+  await db.transaction('rw', db.targets, async () => {
+    for (const e of expected) {
+      const found = await db.targets
+        .where('[fiscalYear+scope+scopeKey]')
+        .equals([fy, e.scope, e.scopeKey]).first();
+      if (!found) {
+        await db.targets.add({
+          fiscalYear: fy,
+          scope: e.scope,
+          scopeKey: e.scopeKey,
+          holderId: e.holderId,
+          annualTarget: null, h1Target: null, h2Target: null,
+          q1Target: null, q2Target: null, q3Target: null, q4Target: null,
+          status: 'TBD',
+          notes: '',
+          createdAt: now,
+          updatedAt: now
+        });
+      }
+    }
+  });
+}
+
+// Rebuild = ensure new rows + remove orphaned holder rows whose holder no longer
+// exists or no longer carries that brand. (Portfolio + brand rows are never deleted.)
+async function rebuildMatrixRows(fy) {
+  await ensureTargetRows(fy);
+  const expectedKeys = new Set(
+    (await computeExpectedTargetRows(fy)).map(e => `${e.scope}|${e.scopeKey}`)
+  );
+  const existing = await db.targets.where('fiscalYear').equals(fy).toArray();
+  let removed = 0;
+  for (const t of existing) {
+    const isHolderRow = (t.scope === 'person+brand' || t.scope === 'bu+brand');
+    if (isHolderRow && !expectedKeys.has(`${t.scope}|${t.scopeKey}`)) {
+      // Only delete if all values are blank — never silently lose entered data
+      const hasValues = ['annualTarget','h1Target','h2Target','q1Target','q2Target','q3Target','q4Target']
+        .some(k => t[k] !== null && t[k] !== undefined);
+      if (!hasValues) {
+        await db.targets.delete(t.id);
+        removed++;
+      } else {
+        // Mark as orphaned but keep the data
+        await db.targets.update(t.id, { status: 'orphaned', updatedAt: new Date().toISOString() });
+      }
+    }
+  }
+  return { removed };
+}
+
+// Determine target status from values.
+// "Official" once all 7 fields have user-entered values (non-null).
+function computeTargetStatus(t) {
+  if (t.status === 'orphaned') return 'orphaned';
+  const fields = ['annualTarget','h1Target','h2Target','q1Target','q2Target','q3Target','q4Target'];
+  const allFilled = fields.every(f => t[f] !== null && t[f] !== undefined && !isNaN(t[f]));
+  if (allFilled) return t.status === 'Revised' ? 'Revised' : 'Official';
+  return 'TBD';
+}
+
+// Auto-suggestions when only Annual is set
+function getSuggestedValues(t) {
+  const a = t.annualTarget;
+  if (a === null || a === undefined || isNaN(a)) return {};
+  return {
+    h1Target: a / 2, h2Target: a / 2,
+    q1Target: a / 4, q2Target: a / 4, q3Target: a / 4, q4Target: a / 4
+  };
+}
+
+// Consistency warnings: returns { fieldKey: 'message' }
+function getConsistencyWarnings(t) {
+  const w = {};
+  const v = (k) => (t[k] === null || t[k] === undefined || isNaN(t[k])) ? null : t[k];
+  const a = v('annualTarget'), h1 = v('h1Target'), h2 = v('h2Target');
+  const q1 = v('q1Target'), q2 = v('q2Target'), q3 = v('q3Target'), q4 = v('q4Target');
+
+  // Tolerance: 1 lakh
+  const TOL = 100000;
+
+  if (h1 !== null && h2 !== null && a !== null && Math.abs((h1 + h2) - a) > TOL) {
+    w.annualTarget = `H1+H2 = ${fmtINR(h1+h2)} ≠ Annual ${fmtINR(a)}`;
+  }
+  if (q1 !== null && q2 !== null && h1 !== null && Math.abs((q1 + q2) - h1) > TOL) {
+    w.h1Target = `Q1+Q2 = ${fmtINR(q1+q2)} ≠ H1 ${fmtINR(h1)}`;
+  }
+  if (q3 !== null && q4 !== null && h2 !== null && Math.abs((q3 + q4) - h2) > TOL) {
+    w.h2Target = `Q3+Q4 = ${fmtINR(q3+q4)} ≠ H2 ${fmtINR(h2)}`;
+  }
+  return w;
+}
+
+// Rollup validation: for a bu+brand row, compare its value-per-field against
+// the sum of the matching field from all direct reports' person+brand rows
+// for the same brand. Returns { fieldKey: 'message' }.
+// Tolerance: ±5% (per ROLLUP_TOLERANCE_PCT).
+function getRollupWarnings(t, allTargetsForFY, holdersById) {
+  if (t.scope !== 'bu+brand') return {};
+  const w = {};
+  const [mgrName, brand] = t.scopeKey.split('|');
+  const mgr = Object.values(holdersById).find(h => h.fullName === mgrName);
+  if (!mgr) return {};
+
+  // Find direct reports who carry this brand
+  const reports = Object.values(holdersById).filter(h =>
+    h.reportsTo === mgr.id && (h.brands || []).includes(brand) && h.isActive !== false
+  );
+  if (reports.length === 0) return {};
+
+  const reportRows = reports.map(r =>
+    allTargetsForFY.find(x =>
+      x.scope === 'person+brand' && x.scopeKey === `${r.fullName}|${brand}`
+    )
+  ).filter(Boolean);
+  if (reportRows.length === 0) return {};
+
+  const FIELDS = ['annualTarget','h1Target','h2Target','q1Target','q2Target','q3Target','q4Target'];
+  const FIELD_LABELS = { annualTarget:'Annual', h1Target:'H1', h2Target:'H2',
+                         q1Target:'Q1', q2Target:'Q2', q3Target:'Q3', q4Target:'Q4' };
+
+  for (const f of FIELDS) {
+    const buVal = t[f];
+    if (buVal === null || buVal === undefined || isNaN(buVal)) continue;
+    // Sum reports — only count fields that have values; if any report has a null,
+    // the rollup is incomplete and we skip warning rather than warn falsely.
+    let sum = 0, allFilled = true;
+    for (const r of reportRows) {
+      if (r[f] === null || r[f] === undefined || isNaN(r[f])) { allFilled = false; break; }
+      sum += r[f];
+    }
+    if (!allFilled) continue;
+    const tol = Math.max(buVal, sum) * (ROLLUP_TOLERANCE_PCT / 100);
+    if (Math.abs(buVal - sum) > tol) {
+      const diff = buVal - sum;
+      const sign = diff > 0 ? '+' : '';
+      w[f] = `Sum of reports' ${FIELD_LABELS[f]} = ${fmtINR(sum)} (${sign}${fmtINR(diff)} vs BU)`;
+    }
+  }
+  return w;
+}
+
+// Format INR for display in a matrix cell (Lakh-aware)
+function fmtMatrixVal(n) {
+  if (n === null || n === undefined || isNaN(n)) return '';
+  if (n === 0) return '0';
+  // Always show in Lakh in the matrix
+  return (n / 100000).toFixed(2) + ' L';
+}
+
+// Parse an input string into INR
+//   "850" → 850 lakh = 85,000,000 INR  (lakh assumed if no unit)
+//   "850 L" or "850L" or "850 l" → 85,000,000
+//   "8.5 Cr" or "8.5 cr" → 85,000,000
+//   "85000000" with explicit "INR" suffix → 85,000,000
+//   "" → null  (clears value)
+function parseMatrixInput(s) {
+  if (s === null || s === undefined) return undefined; // undefined => no change
+  const trim = String(s).trim();
+  if (trim === '') return null; // clear
+  const cleaned = trim.replace(/,/g, '');
+  // Numeric extraction
+  const m = cleaned.match(/^(-?\d*\.?\d+)\s*(cr|crore|crores|l|lakh|lakhs|inr|rs|₹)?$/i);
+  if (!m) return undefined;
+  const num = parseFloat(m[1]);
+  if (!isFinite(num)) return undefined;
+  const unit = (m[2] || '').toLowerCase();
+  if (unit.startsWith('cr'))    return num * 1e7;
+  if (unit === 'inr' || unit === 'rs' || unit === '₹') return num;
+  // default = lakh
+  return num * 1e5;
+}
+
+let _matrixCache = null;
+async function renderMatrix() {
+  const fy = document.getElementById('tFY').value || DEFAULT_TARGET_FY;
+  await ensureTargetRows(fy);
+
+  const allTargets = await db.targets.where('fiscalYear').equals(fy).toArray();
+  const holders = await db.holders.toArray();
+  const holderMap = Object.fromEntries(holders.map(h => [h.id, h]));
+  const holdersByName = Object.fromEntries(holders.map(h => [h.fullName, h]));
+  _matrixCache = { fy, targets: allTargets, holderMap, holdersByName };
+
+  // Sort: portfolio → brand (BS, tvONE, GH) → bu+brand grouped by manager →
+  //       person+brand grouped under their manager (or unmanaged at end)
+  const brandOrder = { 'BrightSign': 1, 'tvONE': 2, 'Green Hippo': 3 };
+  const scopeOrder = { portfolio: 0, brand: 1, 'bu+brand': 2, 'person+brand': 3 };
+
+  // Build a display order — for bu+brand and person+brand, group them by
+  // (manager fullName, brand). bu+brand row first, then its reports' person+brand rows.
+  // For person+brand without a manager (top-level holder with no reports of their own),
+  // they appear at the end as a separate group.
+  function sortKeyFor(t) {
+    if (t.scope === 'portfolio') return ['0'];
+    if (t.scope === 'brand') return ['1', String(brandOrder[t.scopeKey] || 99)];
+    if (t.scope === 'bu+brand') {
+      const [mgrName, brand] = t.scopeKey.split('|');
+      // bu+brand rows sit at position [2, mgrName, brand, '0']
+      // their reports sit at [2, mgrName, brand, '1', reportName]
+      return ['2', mgrName, String(brandOrder[brand] || 99), '0'];
+    }
+    if (t.scope === 'person+brand') {
+      const [name, brand] = t.scopeKey.split('|');
+      const h = holdersByName[name];
+      const mgr = h?.reportsTo ? holderMap[h.reportsTo] : null;
+      if (mgr) {
+        return ['2', mgr.fullName, String(brandOrder[brand] || 99), '1', name];
+      }
+      // top-level holder (no manager). Group at end.
+      return ['3', name, String(brandOrder[brand] || 99)];
+    }
+    return ['9'];
+  }
+
+  allTargets.sort((a, b) => {
+    const ka = sortKeyFor(a), kb = sortKeyFor(b);
+    for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+      const x = ka[i] || '', y = kb[i] || '';
+      if (x !== y) return x < y ? -1 : 1;
+    }
+    return 0;
+  });
+
+  const wrap = document.getElementById('tMatrixWrap');
+  if (allTargets.length === 0) {
+    wrap.innerHTML = `<div class="empty">
+      <div class="ico">🎯</div>
+      <div>No target rows yet for ${escapeHTML(fy)}.</div>
+      <div style="margin-top:6px;font-size:13px">Add target holders first, then come back here.</div>
+    </div>`;
+    return;
+  }
+
+  let html = `<div class="records-wrap" style="max-height:680px"><table class="matrix">
+    <thead>
+      <tr>
+        <th class="left" style="min-width:130px">Scope</th>
+        <th class="left" style="min-width:200px">Brand / Holder</th>
+        <th>Annual</th>
+        <th>H1 (Apr–Sep)</th>
+        <th>H2 (Oct–Mar)</th>
+        <th>Q1 (Apr–Jun)</th>
+        <th>Q2 (Jul–Sep)</th>
+        <th>Q3 (Oct–Dec)</th>
+        <th>Q4 (Jan–Mar)</th>
+        <th style="min-width:100px">Status</th>
+      </tr>
+    </thead><tbody>`;
+
+  for (const t of allTargets) {
+    const status = computeTargetStatus(t);
+    const sugg = getSuggestedValues(t);
+    const consistencyWarns = getConsistencyWarnings(t);
+    const rollupWarns = (t.scope === 'bu+brand')
+                       ? getRollupWarnings(t, allTargets, holderMap)
+                       : {};
+    const warns = { ...consistencyWarns };
+    // Merge rollup warnings (don't overwrite — concat if both)
+    for (const k of Object.keys(rollupWarns)) {
+      warns[k] = warns[k] ? (warns[k] + ' · ' + rollupWarns[k]) : rollupWarns[k];
+    }
+
+    let scopeLabel, brandHolderLabel, rowCls = '';
+    if (t.scope === 'portfolio') {
+      scopeLabel = '<strong>Portfolio</strong>';
+      brandHolderLabel = '<span class="text-muted">All brands · Total target</span>';
+      rowCls = 'scope-row portfolio';
+    } else if (t.scope === 'brand') {
+      const cls = t.scopeKey === 'BrightSign' ? 'pill-bs'
+                : t.scopeKey === 'tvONE' ? 'pill-tv'
+                : t.scopeKey === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+      scopeLabel = '<span class="text-muted">Brand</span>';
+      brandHolderLabel = `<span class="pill ${cls}">${escapeHTML(t.scopeKey)}</span>`;
+      rowCls = 'scope-row';
+    } else if (t.scope === 'bu+brand') {
+      const [name, brand] = t.scopeKey.split('|');
+      const cls = brand === 'BrightSign' ? 'pill-bs'
+                : brand === 'tvONE' ? 'pill-tv'
+                : brand === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+      const mgr = holderMap[t.holderId] || holdersByName[name];
+      const region = mgr?.region ? `<span class="text-muted" style="font-size:11px"> · ${escapeHTML(mgr.region)}</span>` : '';
+      scopeLabel = '<span class="pill pill-rev" style="font-size:10px">BU rollup</span>';
+      brandHolderLabel = `<strong>${escapeHTML(name)}</strong> <span class="text-muted" style="font-size:11px">· BU Head${escapeHTML('')}</span>${region}<br><span class="pill ${cls}" style="margin-top:3px">${escapeHTML(brand)}</span>`;
+      rowCls = 'scope-row bu-row';
+    } else if (t.scope === 'person+brand') {
+      const [name, brand] = t.scopeKey.split('|');
+      const cls = brand === 'BrightSign' ? 'pill-bs'
+                : brand === 'tvONE' ? 'pill-tv'
+                : brand === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+      const holder = holderMap[t.holderId] || holdersByName[name];
+      const role = holder ? `<span class="text-muted" style="font-size:11px"> · ${escapeHTML(holder.role)}</span>` : '';
+      const region = holder?.region ? `<span class="text-muted" style="font-size:11px"> · ${escapeHTML(holder.region)}</span>` : '';
+      const isUnderBU = !!holder?.reportsTo;
+      const indent = isUnderBU ? '<span style="display:inline-block;width:24px;text-align:center;color:var(--text-3)">└─</span>' : '';
+      scopeLabel = isUnderBU ? '<span class="text-muted" style="font-size:11px">Person</span>'
+                              : '<span class="text-muted">Person (top-level)</span>';
+      brandHolderLabel = `${indent}${escapeHTML(name)}${role}${region}<br><span class="pill ${cls}" style="margin-top:3px;margin-left:${isUnderBU?'24px':'0'}">${escapeHTML(brand)}</span>`;
+    }
+
+    const orphCls = status === 'orphaned' ? ' style="opacity:0.5"' : '';
+
+    const cellHTML = (key) => {
+      const val = t[key];
+      const hasValue = val !== null && val !== undefined && !isNaN(val);
+      const suggValue = sugg[key];
+      const showSugg = !hasValue && suggValue !== undefined;
+      const cls = ['tcell'];
+      if (hasValue) cls.push('has-value');
+      if (showSugg) cls.push('suggested');
+      if (warns[key]) cls.push('warn');
+      const display = hasValue ? fmtMatrixVal(val)
+                    : showSugg ? fmtMatrixVal(suggValue)
+                    : '';
+      const title = warns[key] ? `title="${escapeHTML(warns[key])}"` : '';
+      return `<td class="${cls.join(' ')}" data-key="${key}" data-id="${t.id}" ${title}>${display}${warns[key] ? '<span class="warn-tag">⚠</span>' : ''}</td>`;
+    };
+
+    const statusPill = status === 'TBD' ? '<span class="pill pill-tbd">TBD</span>'
+                     : status === 'Official' ? '<span class="pill pill-off">Official</span>'
+                     : status === 'Revised' ? '<span class="pill pill-rev">Revised</span>'
+                     : '<span class="pill pill-ot">Orphaned</span>';
+
+    html += `<tr class="${rowCls}"${orphCls}>
+      <td class="scope-cell">${scopeLabel}</td>
+      <td class="holder-cell">${brandHolderLabel}</td>
+      ${cellHTML('annualTarget')}
+      ${cellHTML('h1Target')}
+      ${cellHTML('h2Target')}
+      ${cellHTML('q1Target')}
+      ${cellHTML('q2Target')}
+      ${cellHTML('q3Target')}
+      ${cellHTML('q4Target')}
+      <td style="text-align:center">${statusPill}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+
+  // Footer hint about totals
+  const offCount = allTargets.filter(t => computeTargetStatus(t) === 'Official' || computeTargetStatus(t) === 'Revised').length;
+  const buCount = allTargets.filter(t => t.scope === 'bu+brand').length;
+  html += `<div class="text-muted" style="margin-top:12px;font-size:12px">
+    ${allTargets.length} target row${allTargets.length === 1 ? '' : 's'} for ${escapeHTML(fy)} · ${offCount} fully entered · ${buCount} BU rollup ${buCount === 1 ? 'row' : 'rows'} · rollup tolerance ±${ROLLUP_TOLERANCE_PCT}%
+  </div>`;
+
+  wrap.innerHTML = html;
+
+  // Wire cell editing
+  wrap.querySelectorAll('.tcell').forEach(td => {
+    td.addEventListener('click', () => editCell(td));
+  });
+}
+
+function editCell(td) {
+  if (td.querySelector('input')) return; // already editing
+  const key = td.dataset.key;
+  const id = parseInt(td.dataset.id);
+  const target = _matrixCache.targets.find(t => t.id === id);
+  if (!target) return;
+  const sugg = getSuggestedValues(target);
+  const currentValue = target[key];
+
+  // If empty + suggestion shown, prefill with suggestion as a "starter" value
+  let initialText = '';
+  if (currentValue !== null && currentValue !== undefined) {
+    initialText = (currentValue / 100000).toString();
+  } else if (sugg[key] !== undefined) {
+    initialText = (sugg[key] / 100000).toFixed(2);
+  }
+
+  td.innerHTML = `<input type="text" value="${initialText}" placeholder="Lakh">`;
+  const input = td.querySelector('input');
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const raw = input.value;
+    const parsed = parseMatrixInput(raw);
+    if (parsed === undefined) {
+      // invalid - revert without change
+      await renderMatrix();
+      return;
+    }
+    // parsed is null (clear) or a number (INR)
+    const update = { [key]: parsed, updatedAt: new Date().toISOString() };
+    await db.targets.update(id, update);
+    await renderMatrix();
+  };
+  const cancel = () => renderMatrix();
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault();
+      input.removeEventListener('blur', commit);
+      cancel();
+    }
+  });
+}
+
+async function populateFYSelector() {
+  const sel = document.getElementById('tFY');
+  const fys = await getAvailableFYs();
+  const cur = sel.value;
+  sel.innerHTML = fys.map(f => `<option value="${f}">${f}</option>`).join('');
+  if (fys.includes(cur)) sel.value = cur;
+  else sel.value = DEFAULT_TARGET_FY;
+}
+
+// ============= 13. PACE MATH PRIMITIVES (used by Phase 3) =============
+// Exposed as window.cavitakPace.* for inspection; not displayed yet.
+
+const Pace = {
+  // Annual pro-rated against months elapsed in the FY
+  // Indian FY: Apr (1) → Mar (12)
+  monthsElapsed(fy, asOfDate = new Date()) {
+    // Parse FY label "FY25-26" → start year 2025
+    const m = fy.match(/^FY(\d{2})-(\d{2})$/);
+    if (!m) return 0;
+    const startYear = 2000 + parseInt(m[1]);
+    const fyStart = new Date(startYear, 3, 1);    // April 1 of start year
+    const fyEnd   = new Date(startYear + 1, 3, 1); // April 1 of next year (exclusive)
+    if (asOfDate < fyStart) return 0;
+    if (asOfDate >= fyEnd)  return 12;
+    let months = (asOfDate.getFullYear() - fyStart.getFullYear()) * 12
+               + (asOfDate.getMonth() - fyStart.getMonth());
+    // Add fractional month (day-of-month proration)
+    const dayFrac = (asOfDate.getDate() - 1) /
+                    new Date(asOfDate.getFullYear(), asOfDate.getMonth() + 1, 0).getDate();
+    months += dayFrac;
+    return Math.max(0, Math.min(12, months));
+  },
+
+  // Linear pace: target × (monthsElapsed / 12)
+  linearPace(annualTarget, fy, asOfDate = new Date()) {
+    if (annualTarget === null || annualTarget === undefined || isNaN(annualTarget)) return null;
+    const m = Pace.monthsElapsed(fy, asOfDate);
+    return annualTarget * (m / 12);
+  },
+
+  // Achievement % = actual ÷ pace (returns null if pace is 0/null)
+  achievementPct(actualINR, paceINR) {
+    if (paceINR === null || paceINR === undefined || paceINR === 0) return null;
+    return (actualINR / paceINR) * 100;
+  },
+
+  // Sum actuals matching scope/scopeKey for a given FY up to asOfDate
+  async getActualToDate(scope, scopeKey, fy, asOfDate = new Date(), opts = {}) {
+    const excludeDemo = opts.excludeDemo !== false;
+    const excludeAdj = opts.excludeAdj !== false;
+    const asISO = asOfDate.toISOString().slice(0, 10);
+    let sum = 0;
+    await db.sales.where('fiscalYear').equals(fy).each(r => {
+      if (r.postingDate > asISO) return;
+      if (excludeDemo && r.isDemo) return;
+      if (excludeAdj && r.isAdjustment) return;
+      let match = false;
+      if (scope === 'portfolio') match = true;
+      else if (scope === 'brand') match = (r.brand === scopeKey);
+      else if (scope === 'person+brand') {
+        const [name, brand] = scopeKey.split('|');
+        match = (r.salesEmp === name && r.brand === brand);
+      }
+      if (match) sum += (r.netValueINR || 0);
+    });
+    return sum;
+  },
+
+  // Pull the target row (or null)
+  async getTargetRow(scope, scopeKey, fy) {
+    return await db.targets.where('[fiscalYear+scope+scopeKey]')
+                            .equals([fy, scope, scopeKey]).first();
+  }
+};
+window.cavitakPace = Pace;   // for browser-console inspection
+
+// ============= 13.5 DASHBOARD (Phase 3.5) =============
+
+// ----- Aggregation helpers -----
+
+// Filter sales records based on dashboard filter state.
+// Supports both modes:
+//   YTD mode:  { fy, asOf } — records in fy with postingDate <= asOf
+//   Range mode: { from, to } — records with postingDate in [from..to]; fy is ignored
+// Common filters: { brand, excludeDemo }
+function _filterRecords(records, filters) {
+  return records.filter(r => {
+    if (filters.brand && r.brand !== filters.brand) return false;
+    if (filters.excludeDemo && (r.isDemo || r.isAdjustment)) return false;
+    if (filters.from && r.postingDate < filters.from) return false;
+    if (filters.to && r.postingDate > filters.to) return false;
+    if (filters.fy && r.fiscalYear !== filters.fy) return false;
+    if (filters.asOf && r.postingDate > filters.asOf) return false;
+    return true;
+  });
+}
+
+// Sum revenue with optional grouping
+function _sumBy(records, groupFn) {
+  if (!groupFn) return records.reduce((s, r) => s + (r.netValueINR || 0), 0);
+  const out = {};
+  for (const r of records) {
+    const k = groupFn(r);
+    if (k === null || k === undefined) continue;
+    out[k] = (out[k] || 0) + (r.netValueINR || 0);
+  }
+  return out;
+}
+
+// Count unique customers in records
+function _uniqueCount(records, fn) {
+  const s = new Set();
+  for (const r of records) {
+    const k = fn(r);
+    if (k) s.add(k);
+  }
+  return s.size;
+}
+
+// Compute prior-FY label
+function _priorFY(fy) {
+  const m = fy.match(/^FY(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const start = parseInt(m[1]);
+  const end = parseInt(m[2]);
+  return `FY${(start - 1).toString().padStart(2,'0')}-${(end - 1).toString().padStart(2,'0')}`;
+}
+
+// Same-day-in-prior-FY date
+function _priorFYAsOf(asOfStr, fy) {
+  if (!asOfStr) return null;
+  const d = new Date(asOfStr);
+  d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Subtract N days from an ISO date string
+function _shiftDays(isoDate, days) {
+  const d = new Date(isoDate);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Get last full month's window in a FY (relative to asOf), and prior-month window.
+// Returns { lastMonthFrom, lastMonthTo, priorMonthFrom, priorMonthTo } as ISO dates,
+// or null if asOf is before any full month within the FY.
+// "Full month" = current month if asOf is the last day of that month, else previous month.
+function _getMonthWindows(fy, asOfStr) {
+  const m = fy.match(/^FY(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const fyStartYear = 2000 + parseInt(m[1]);
+  const fyStart = new Date(fyStartYear, 3, 1); // Apr 1
+  const asOf = new Date(asOfStr);
+
+  // Determine if current month is complete (asOf is its last day)
+  const lastDayOfAsOfMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0).getDate();
+  const currentMonthComplete = (asOf.getDate() === lastDayOfAsOfMonth);
+
+  // Pick the "last full month": current month if complete, else previous month
+  let lmYear, lmMonth;
+  if (currentMonthComplete) {
+    lmYear = asOf.getFullYear();
+    lmMonth = asOf.getMonth();
+  } else {
+    const prev = new Date(asOf.getFullYear(), asOf.getMonth(), 0); // last day of prev month
+    lmYear = prev.getFullYear();
+    lmMonth = prev.getMonth();
+  }
+  const lastMonthCandidate = new Date(lmYear, lmMonth, 1);
+  if (lastMonthCandidate < fyStart) return null;
+
+  const lastMonthFrom = lastMonthCandidate.toISOString().slice(0, 10);
+  const lastMonthTo = new Date(lmYear, lmMonth + 1, 0).toISOString().slice(0, 10);
+
+  // Prior month
+  const pmDate = new Date(lmYear, lmMonth - 1, 1);
+  if (pmDate < fyStart) {
+    return { lastMonthFrom, lastMonthTo, priorMonthFrom: null, priorMonthTo: null };
+  }
+  const pmYear = pmDate.getFullYear();
+  const pmMonth = pmDate.getMonth();
+  const priorMonthFrom = new Date(pmYear, pmMonth, 1).toISOString().slice(0, 10);
+  const priorMonthTo = new Date(pmYear, pmMonth + 1, 0).toISOString().slice(0, 10);
+  return { lastMonthFrom, lastMonthTo, priorMonthFrom, priorMonthTo };
+}
+
+// Run-rate forecast: annualized projection
+//   = (actual ÷ months elapsed) × 12
+// Returns null if no months elapsed.
+function _runRateForecast(actual, monthsElapsed) {
+  if (!monthsElapsed || monthsElapsed <= 0) return null;
+  return (actual / monthsElapsed) * 12;
+}
+
+// ----- KPI tile rendering -----
+
+function _kpiTile(label, value, sub, statusClass = '') {
+  return `<div class="kpi-tile ${statusClass}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-sub">${sub}</div>
+  </div>`;
+}
+
+function _deltaSpan(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) {
+    return '<span class="text-muted">—</span>';
+  }
+  if (pct > 5) return `<span class="kpi-delta delta-up">▲ +${pct.toFixed(1)}%</span>`;
+  if (pct < -5) return `<span class="kpi-delta delta-down">▼ ${pct.toFixed(1)}%</span>`;
+  return `<span class="kpi-delta delta-flat">◆ ${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>`;
+}
+
+function _statusFromPct(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return 'muted';
+  if (pct >= 95) return 'green';
+  if (pct >= 80) return 'amber';
+  return 'red';
+}
+
+// ----- Brand performance matrix -----
+
+function _renderBrandMatrix(opts) {
+  const { records, allTargets, fy, scopeTo, monthsElapsed } = opts;
+
+  // Aggregate actual revenue per brand
+  const brandActual = {};
+  for (const b of BRANDS) brandActual[b] = 0;
+  let portfolioActual = 0;
+  for (const r of records) {
+    if (BRANDS.includes(r.brand)) {
+      brandActual[r.brand] += (r.netValueINR || 0);
+    }
+    portfolioActual += (r.netValueINR || 0);
+  }
+
+  // Lookup target rows
+  const targetByKey = {};
+  for (const t of (allTargets || [])) targetByKey[`${t.scope}|${t.scopeKey}`] = t;
+
+  function row(label, scopeKey, actual, brandClass = '', isPortfolio = false) {
+    const tgt = targetByKey[scopeKey];
+    const annual = tgt?.annualTarget ?? null;
+    const pace = annual !== null ? Pace.linearPace(annual, fy, new Date(scopeTo)) : null;
+    const achievement = (pace !== null && pace > 0) ? (actual / pace) * 100 : null;
+    const gap = annual !== null ? annual - actual : null;
+    const runRate = _runRateForecast(actual, monthsElapsed);
+    const runRateVsTgt = (annual !== null && annual > 0 && runRate !== null)
+      ? (runRate / annual) * 100 : null;
+
+    const fillCls = achievement === null ? 'achv-fill-red'
+                   : achievement >= 95 ? 'achv-fill-green'
+                   : achievement >= 80 ? 'achv-fill-amber' : 'achv-fill-red';
+    const barWidth = achievement === null ? 0 : Math.min(100, Math.max(0, achievement));
+    const achievementCell = achievement === null
+      ? '<span class="text-muted">—</span>'
+      : `<span class="achv-bar"><span class="achv-bar-fill ${fillCls}" style="width:${barWidth}%"></span></span>${achievement.toFixed(0)}%`;
+
+    const runRateCell = runRate === null
+      ? '<span class="text-muted">—</span>'
+      : runRateVsTgt !== null
+        ? `${fmtINR(runRate)}<br><span class="text-muted" style="font-size:10px">${runRateVsTgt.toFixed(0)}% of target</span>`
+        : fmtINR(runRate);
+
+    const cls = isPortfolio ? 'row-portfolio' : '';
+    const labelCell = brandClass
+      ? `<span class="pill ${brandClass}">${escapeHTML(label)}</span>`
+      : `<strong>${escapeHTML(label)}</strong>`;
+
+    return `<tr class="${cls}">
+      <td>${labelCell}</td>
+      <td class="num">${annual !== null ? fmtINR(annual) : '<span class="text-muted">— TBD</span>'}</td>
+      <td class="num">${fmtINR(actual)}</td>
+      <td class="num">${pace !== null ? fmtINR(pace) : '<span class="text-muted">—</span>'}</td>
+      <td class="num">${achievementCell}</td>
+      <td class="num">${runRateCell}</td>
+      <td class="num">${gap !== null ? (gap > 0 ? fmtINR(gap) : '<span style="color:#6EE7B7">'+fmtINR(-gap)+' ahead</span>') : '<span class="text-muted">—</span>'}</td>
+    </tr>`;
+  }
+
+  let html = `<table class="brand-matrix">
+    <thead><tr>
+      <th>Scope</th>
+      <th class="num">FY Target</th>
+      <th class="num">Actual</th>
+      <th class="num">Pace</th>
+      <th class="num" style="min-width:200px">Achievement</th>
+      <th class="num">Run-Rate</th>
+      <th class="num">Gap to FY</th>
+    </tr></thead>
+    <tbody>`;
+
+  // Total Portfolio row at top (per spec)
+  html += row('Total Portfolio', 'portfolio|All', portfolioActual, '', true);
+  html += row('BrightSign', 'brand|BrightSign', brandActual['BrightSign'], 'pill-bs');
+  html += row('tvONE',      'brand|tvONE',      brandActual['tvONE'],      'pill-tv');
+  html += row('Green Hippo','brand|Green Hippo',brandActual['Green Hippo'],'pill-gh');
+
+  html += `</tbody></table>
+    <div class="text-muted" style="margin-top:10px;font-size:11px">
+      As of ${escapeHTML(scopeTo)} · ${monthsElapsed.toFixed(1)} of 12 months elapsed (${(monthsElapsed/12*100).toFixed(0)}%) · pace = linear pro-rate · run-rate = annualized projection at current pace
+    </div>`;
+  document.getElementById('dBrandMatrix').innerHTML = html;
+}
+
+// ----- KPI strip (v0.6: 3 rows, with YoY + repeat-customer additions) -----
+
+function _renderKPIs(opts) {
+  const {
+    records, recordsLast3mo, recordsPrior3mo, recordsLastMonth, recordsPriorMonth,
+    recordsYoYSame, recordsLYFullYear,
+    allSalesInDB, scopeFrom, scopeTo, fy, asOf, brand, mode,
+    targets, monthsElapsed, allTargets
+  } = opts;
+
+  // ----- Calculations shared across tiles -----
+  const ytdActual = _sumBy(records);
+  const portTgt = (allTargets || []).find(t => t.scope === 'portfolio' && t.scopeKey === 'All');
+  const portAnnual = portTgt?.annualTarget ?? null;
+  const portPace = portAnnual !== null ? Pace.linearPace(portAnnual, fy, new Date(scopeTo)) : null;
+  const portAchievement = (portPace !== null && portPace > 0) ? (ytdActual / portPace) * 100 : null;
+  const runRate = _runRateForecast(ytdActual, monthsElapsed);
+  const runRateVsTarget = (portAnnual !== null && portAnnual > 0 && runRate !== null)
+    ? (runRate / portAnnual) * 100 : null;
+
+  // MoM (last full month vs prior full month, cross-FY aware)
+  const lastMonthRev = _sumBy(recordsLastMonth || []);
+  const priorMonthRev = _sumBy(recordsPriorMonth || []);
+  const momPct = priorMonthRev > 0
+    ? ((lastMonthRev - priorMonthRev) / priorMonthRev) * 100 : null;
+
+  // Period over period (last 3mo vs prior 3mo)
+  const last3mo = _sumBy(recordsLast3mo || []);
+  const prior3mo = _sumBy(recordsPrior3mo || []);
+  const popPct = prior3mo > 0 ? ((last3mo - prior3mo) / prior3mo) * 100 : null;
+
+  // YoY Same-Period (CY YTD vs LY same window)
+  const yoySameRev = _sumBy(recordsYoYSame || []);
+  const yoySamePct = yoySameRev > 0
+    ? ((ytdActual - yoySameRev) / yoySameRev) * 100 : null;
+
+  // YoY Full-Year (CY YTD vs LY full year — % matched)
+  const lyFullRev = _sumBy(recordsLYFullYear || []);
+  const lyMatchedPct = lyFullRev > 0 ? (ytdActual / lyFullRev) * 100 : null;
+  // For pace context: how much of LY should we have matched by now if pacing equally?
+  const lyExpectedMatchPct = (monthsElapsed / 12) * 100;
+
+  // Brand achievements (only used if brand filter is "all")
+  const brandStats = {};
+  for (const b of BRANDS) {
+    const tgt = (allTargets || []).find(t => t.scope === 'brand' && t.scopeKey === b);
+    const ann = tgt?.annualTarget ?? null;
+    const pace = ann !== null ? Pace.linearPace(ann, fy, new Date(scopeTo)) : null;
+    const actual = _sumBy(records.filter(r => r.brand === b));
+    const ach = (pace !== null && pace > 0) ? (actual / pace) * 100 : null;
+    brandStats[b] = { actual, ann, pace, ach };
+  }
+
+  // Composition / quality
+  const activeCustomers = _uniqueCount(records, r => r.customerClean);
+  const invoiceCount = new Set(records.map(r => r.docNumber)).size;
+  const avgDealSize = invoiceCount > 0 ? ytdActual / invoiceCount : 0;
+  // Top 5 concentration
+  const byCust = _sumBy(records, r => r.customerClean);
+  const sortedCustValues = Object.values(byCust).sort((a, b) => b - a);
+  const top5Sum = sortedCustValues.slice(0, 5).reduce((s, v) => s + v, 0);
+  const top5Pct = ytdActual > 0 ? (top5Sum / ytdActual) * 100 : 0;
+  // Fixed: "new customers" = first purchase within last 90 days of scope
+  const newCutoff = _shiftDays(scopeTo, -90);
+  const firstPurchaseAcrossDB = {};
+  for (const r of (allSalesInDB || [])) {
+    if (r.isDemo || r.isAdjustment) continue;
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!firstPurchaseAcrossDB[c] || r.postingDate < firstPurchaseAcrossDB[c]) {
+      firstPurchaseAcrossDB[c] = r.postingDate;
+    }
+  }
+  const inScopeCusts = new Set();
+  for (const r of records) inScopeCusts.add(r.customerClean);
+  let newCount = 0;
+  for (const c of inScopeCusts) {
+    const fp = firstPurchaseAcrossDB[c];
+    if (fp && fp >= newCutoff && fp <= scopeTo) newCount++;
+  }
+  // Repeat customer share
+  const invByCust = {};
+  for (const r of records) {
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!invByCust[c]) invByCust[c] = new Set();
+    invByCust[c].add(r.docNumber);
+  }
+  const repeatCusts = Object.entries(invByCust).filter(([,s]) => s.size >= 2);
+  const repeatCustNames = new Set(repeatCusts.map(([c,]) => c));
+  const repeatCustCount = repeatCusts.length;
+  const repeatCustPct = activeCustomers > 0 ? (repeatCustCount / activeCustomers) * 100 : 0;
+  let repeatRev = 0;
+  for (const r of records) {
+    if (repeatCustNames.has(r.customerClean)) repeatRev += (r.netValueINR || 0);
+  }
+  const repeatRevPct = ytdActual > 0 ? (repeatRev / ytdActual) * 100 : 0;
+
+  // ----- Render Row 1: Headline (6 tiles) -----
+  const row1 = document.getElementById('dKpisRow1');
+  let html1 = '';
+  // T1: Portfolio Revenue
+  const monthsLabel = monthsElapsed >= 12
+    ? 'FY complete'
+    : `${monthsElapsed.toFixed(1)} of 12 months elapsed`;
+  html1 += _kpiTile(
+    mode === 'range' ? 'Revenue (range)' : 'Portfolio Revenue YTD',
+    fmtINR(ytdActual),
+    portAchievement !== null
+      ? `${portAchievement.toFixed(0)}% of pace · ${monthsLabel}`
+      : monthsLabel,
+    portAchievement !== null ? _statusFromPct(portAchievement) : 'muted'
+  );
+  // T2: Achievement vs Pace
+  if (portAnnual !== null) {
+    html1 += _kpiTile(
+      'Achievement vs Pace',
+      portAchievement !== null ? `${portAchievement.toFixed(0)}%` : '—',
+      portAchievement !== null ? `Pace target ${fmtINR(portPace)} · actual ${fmtINR(ytdActual)}` : '',
+      _statusFromPct(portAchievement)
+    );
+  } else {
+    html1 += _kpiTile(
+      'Achievement vs Pace',
+      '— TBD',
+      'Set portfolio FY target in Targets tab',
+      'muted'
+    );
+  }
+  // T3: Run-rate forecast
+  if (runRate !== null) {
+    const subText = portAnnual !== null
+      ? `vs FY target ${fmtINR(portAnnual)} · ${runRateVsTarget.toFixed(0)}% projected`
+      : `at current rate (${monthsElapsed.toFixed(1)} mo of data)`;
+    html1 += _kpiTile(
+      'Run-Rate FY Forecast',
+      fmtINR(runRate),
+      subText,
+      runRateVsTarget !== null ? _statusFromPct(runRateVsTarget) : ''
+    );
+  } else {
+    html1 += _kpiTile('Run-Rate FY Forecast', '—', 'Need data first', 'muted');
+  }
+  // T4: MoM growth (cross-FY aware)
+  if (momPct !== null) {
+    html1 += _kpiTile(
+      'MoM Growth (last full month)',
+      _deltaSpan(momPct),
+      `Last month ${fmtINR(lastMonthRev)} · prior ${fmtINR(priorMonthRev)}`,
+      momPct > 5 ? 'green' : momPct < -5 ? 'red' : 'amber'
+    );
+  } else if (lastMonthRev > 0) {
+    html1 += _kpiTile(
+      'MoM Growth (last full month)',
+      'Baseline month',
+      `Last month ${fmtINR(lastMonthRev)} (no prior month data)`,
+      'muted'
+    );
+  } else {
+    html1 += _kpiTile('MoM Growth', '—', 'Insufficient data', 'muted');
+  }
+  // T5: YoY Same-Period
+  if (yoySamePct !== null) {
+    html1 += _kpiTile(
+      'YoY Same-Period',
+      _deltaSpan(yoySamePct),
+      `LY same window: ${fmtINR(yoySameRev)}`,
+      yoySamePct > 5 ? 'green' : yoySamePct < -5 ? 'red' : 'amber'
+    );
+  } else if (ytdActual > 0 && yoySameRev === 0) {
+    html1 += _kpiTile(
+      'YoY Same-Period',
+      `★ ${fmtINR(ytdActual)}`,
+      'LY same window: ₹0 — baseline year for new launch',
+      'muted'
+    );
+  } else {
+    html1 += _kpiTile('YoY Same-Period', '—', 'No CY data yet', 'muted');
+  }
+  // T6: YoY Full-Year (% of LY full-year matched)
+  if (lyFullRev > 0) {
+    const aheadOfPace = lyMatchedPct >= lyExpectedMatchPct;
+    const sub = `LY total ${fmtINR(lyFullRev)} · ${lyExpectedMatchPct.toFixed(0)}% expected by now`;
+    const status = lyMatchedPct >= lyExpectedMatchPct * 1.05 ? 'green'
+                 : lyMatchedPct >= lyExpectedMatchPct * 0.85 ? 'amber' : 'red';
+    html1 += _kpiTile(
+      'YoY Full-Year (matched)',
+      `${lyMatchedPct.toFixed(0)}%`,
+      sub,
+      status
+    );
+  } else {
+    html1 += _kpiTile(
+      'YoY Full-Year (matched)',
+      '—',
+      'No LY data — CY is the baseline',
+      'muted'
+    );
+  }
+  row1.innerHTML = html1;
+
+  // ----- Render Row 2: Brand health (4 tiles) -----
+  // Bug fix: hide non-matching brand tiles when a specific brand is filtered
+  const row2 = document.getElementById('dKpisRow2');
+  let html2 = '';
+  const brandsToShow = brand ? [brand] : BRANDS;
+  for (const b of brandsToShow) {
+    const s = brandStats[b];
+    const pillCls = b === 'BrightSign' ? 'pill-bs'
+                  : b === 'tvONE' ? 'pill-tv'
+                  : b === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+    const head = `<span class="pill ${pillCls}" style="font-size:10px">${escapeHTML(b)}</span>`;
+    const valueText = s.ach !== null
+      ? `${s.ach.toFixed(0)}% of pace`
+      : fmtINR(s.actual);
+    const subText = s.ann !== null
+      ? `${fmtINR(s.actual)} vs target ${fmtINR(s.ann)}`
+      : `${fmtINR(s.actual)} actual · target TBD`;
+    html2 += _kpiTile(
+      head,
+      valueText,
+      subText,
+      s.ach !== null ? _statusFromPct(s.ach) : ''
+    );
+  }
+  // Period over period — always show
+  if (popPct !== null) {
+    html2 += _kpiTile(
+      'Last 3mo vs Prior 3mo',
+      _deltaSpan(popPct),
+      `${fmtINR(last3mo)} vs ${fmtINR(prior3mo)}`,
+      popPct > 5 ? 'green' : popPct < -5 ? 'red' : 'amber'
+    );
+  } else if (last3mo > 0) {
+    html2 += _kpiTile(
+      'Last 3mo vs Prior 3mo',
+      'New period',
+      `Last 3 months ${fmtINR(last3mo)} (no prior 3mo data)`,
+      'muted'
+    );
+  } else {
+    html2 += _kpiTile('Last 3mo vs Prior 3mo', '—', 'Insufficient data', 'muted');
+  }
+  // If filtered to a single brand, pad row to 4 tiles by adding a "viewing brand" indicator
+  if (brand && brandsToShow.length === 1) {
+    // Add a small note tile indicating the filter is active
+    const hidden = BRANDS.filter(b => b !== brand);
+    html2 = `<div class="kpi-tile muted" style="grid-column: span 1;display:flex;align-items:center;justify-content:center;text-align:center"><div><div class="kpi-label">Filtered View</div><div style="font-size:13px;color:var(--text-1);margin-top:6px">Showing only<br><strong style="color:var(--text-0)">${escapeHTML(brand)}</strong></div><div class="kpi-sub" style="margin-top:6px;font-size:11px">${escapeHTML(hidden.join(' & '))} hidden</div></div></div>` + html2;
+  }
+  row2.innerHTML = html2;
+
+  // ----- Render Row 3: Composition & quality (5 tiles — added Repeat Customer Share) -----
+  const row3 = document.getElementById('dKpisRow3');
+  let html3 = '';
+  html3 += _kpiTile(
+    'Active Customers',
+    activeCustomers.toString(),
+    `${invoiceCount} invoices · ${fmtINR(ytdActual)}`,
+    ''
+  );
+  html3 += _kpiTile(
+    'Avg Deal Size',
+    fmtINR(avgDealSize),
+    `Across ${invoiceCount} invoice${invoiceCount === 1 ? '' : 's'}`,
+    ''
+  );
+  // Repeat customer share — NEW v0.6
+  const repeatStatus = repeatCustPct >= 40 ? 'green'
+                     : repeatCustPct >= 20 ? 'amber' : 'red';
+  html3 += _kpiTile(
+    'Repeat Customer Share',
+    activeCustomers > 0 ? `${repeatCustPct.toFixed(0)}%` : '—',
+    activeCustomers > 0
+      ? `${repeatCustCount} of ${activeCustomers} buy 2+ times · ${repeatRevPct.toFixed(0)}% of revenue`
+      : 'No data',
+    activeCustomers > 0 ? repeatStatus : 'muted'
+  );
+  // Concentration: green if balanced (<=60%), amber 60-80, red 80%+
+  const concStatus = top5Pct >= 80 ? 'red' : top5Pct >= 60 ? 'amber' : 'green';
+  html3 += _kpiTile(
+    'Top-5 Concentration',
+    activeCustomers > 0 ? `${top5Pct.toFixed(0)}%` : '—',
+    activeCustomers >= 5
+      ? `Top 5 of ${activeCustomers} customers`
+      : 'Need ≥5 customers',
+    activeCustomers >= 5 ? concStatus : 'muted'
+  );
+  html3 += _kpiTile(
+    'New Customers (last 90d)',
+    newCount.toString(),
+    activeCustomers > 0
+      ? `${(newCount/activeCustomers*100).toFixed(0)}% of active customers · first seen since ${newCutoff}`
+      : 'No data',
+    ''
+  );
+  row3.innerHTML = html3;
+}
+
+// ----- Monthly trend chart -----
+
+let _monthlyChartInst = null;
+function _renderMonthlyChart(opts) {
+  const { records, fy, monthsElapsed } = opts;
+  const monthNames = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
+  // Bucket records by fiscal month idx
+  const cy = Array(12).fill(0);
+  // Track which months have any record (so we don't show fake zeroes for future months)
+  const hasData = Array(12).fill(false);
+  for (const r of records) {
+    if (r.fiscalMonthIdx >= 1 && r.fiscalMonthIdx <= 12) {
+      cy[r.fiscalMonthIdx - 1] += (r.netValueINR || 0);
+      hasData[r.fiscalMonthIdx - 1] = true;
+    }
+  }
+
+  // Convert to lakh for display
+  const cyLakh = cy.map(v => v / 1e5);
+
+  // 3-month rolling average (centered) — only where we have data
+  const rolling3 = Array(12).fill(null);
+  for (let i = 0; i < 12; i++) {
+    if (!hasData[i]) continue;
+    let sum = 0, cnt = 0;
+    for (let j = Math.max(0, i - 1); j <= Math.min(11, i + 1); j++) {
+      if (hasData[j]) { sum += cy[j]; cnt++; }
+    }
+    rolling3[i] = cnt > 0 ? (sum / cnt) / 1e5 : null;
+  }
+
+  // Run-rate trajectory: a flat horizontal line at (total ÷ months elapsed) for completed months
+  const totalSoFar = cy.reduce((s, v) => s + v, 0);
+  const rrLevel = monthsElapsed > 0 ? (totalSoFar / monthsElapsed) / 1e5 : null;
+  const rrLine = Array(12).fill(rrLevel);
+
+  const ctx = document.getElementById('dMonthlyChart').getContext('2d');
+  if (_monthlyChartInst) _monthlyChartInst.destroy();
+
+  const datasets = [
+    {
+      type: 'bar',
+      label: `${fy} Revenue`,
+      data: cyLakh,
+      backgroundColor: 'rgba(99, 102, 241, 0.85)',
+      borderColor: '#6366F1',
+      borderWidth: 0,
+      borderRadius: 4,
+      order: 3
+    },
+    {
+      type: 'line',
+      label: '3-month rolling avg',
+      data: rolling3,
+      borderColor: '#FCD34D',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointBackgroundColor: '#FCD34D',
+      tension: 0.3,
+      spanGaps: false,
+      order: 2
+    },
+    {
+      type: 'line',
+      label: 'Run-rate (avg/month)',
+      data: rrLine,
+      borderColor: '#10B981',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      tension: 0,
+      order: 1
+    }
+  ];
+
+  _monthlyChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: monthNames, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#C7D2FE', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              if (v === null || isNaN(v)) return ctx.dataset.label + ': —';
+              return `${ctx.dataset.label}: ${fmtINR(v * 1e5)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8B86B8', font: { size: 11 } },
+          grid: { color: 'rgba(99,102,241,0.08)' }
+        },
+        y: {
+          ticks: {
+            color: '#8B86B8', font: { size: 11 },
+            callback: v => v >= 100 ? (v/100).toFixed(1) + ' Cr' : v + ' L'
+          },
+          grid: { color: 'rgba(99,102,241,0.08)' }
+        }
+      }
+    }
+  });
+}
+
+// ----- Top customers / Top products -----
+
+function _renderTopCustomers(opts) {
+  const { records, recordsPrior } = opts;
+  const cyByCust = _sumBy(records, r => r.customerClean);
+  const priorByCust = _sumBy(recordsPrior || [], r => r.customerClean);
+  const sorted = Object.entries(cyByCust).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  if (sorted.length === 0) {
+    document.getElementById('dTopCustomers').innerHTML =
+      '<div class="empty">No customer data in this scope.</div>';
+    return;
+  }
+
+  let html = `<table class="top-n">
+    <thead><tr><th style="width:30px">#</th><th>Customer</th><th class="num">Revenue</th><th class="num">vs Prior</th></tr></thead>
+    <tbody>`;
+  for (let i = 0; i < sorted.length; i++) {
+    const [name, cyRev] = sorted[i];
+    const priorRev = priorByCust[name] || 0;
+    const deltaPct = priorRev > 0 ? ((cyRev - priorRev) / priorRev) * 100 : null;
+    let movement = '';
+    if (priorRev === 0 && cyRev > 0) movement = '<span class="pill pill-gh">★ new</span>';
+    else if (deltaPct !== null) movement = _deltaSpan(deltaPct);
+    else movement = '<span class="text-muted">—</span>';
+
+    html += `<tr>
+      <td><span class="rank">${i + 1}</span></td>
+      <td>${escapeHTML(name)}</td>
+      <td class="num">${fmtINR(cyRev)}</td>
+      <td class="num">${movement}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('dTopCustomers').innerHTML = html;
+}
+
+function _renderTopProducts(opts) {
+  const { records } = opts;
+  const byProd = {};
+  const brandByProd = {};
+  const qtyByProd = {};
+  for (const r of records) {
+    const k = r.productModel || r.itemDesc || '(unknown)';
+    byProd[k] = (byProd[k] || 0) + (r.netValueINR || 0);
+    qtyByProd[k] = (qtyByProd[k] || 0) + (r.quantity || 0);
+    if (!brandByProd[k]) brandByProd[k] = r.brand || 'Other';
+  }
+  const sorted = Object.entries(byProd).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  if (sorted.length === 0) {
+    document.getElementById('dTopProducts').innerHTML =
+      '<div class="empty">No product data in this scope.</div>';
+    return;
+  }
+
+  let html = `<table class="top-n">
+    <thead><tr><th style="width:30px">#</th><th>Brand</th><th>Model</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead>
+    <tbody>`;
+  for (let i = 0; i < sorted.length; i++) {
+    const [model, rev] = sorted[i];
+    const brand = brandByProd[model];
+    const qty = qtyByProd[model];
+    const cls = brand === 'BrightSign' ? 'pill-bs'
+              : brand === 'tvONE' ? 'pill-tv'
+              : brand === 'Green Hippo' ? 'pill-gh' : 'pill-ot';
+    html += `<tr>
+      <td><span class="rank">${i + 1}</span></td>
+      <td><span class="pill ${cls}" style="font-size:10px">${escapeHTML(brand)}</span></td>
+      <td class="mono" style="font-size:11px">${escapeHTML(model)}</td>
+      <td class="num">${fmtNum(qty)}</td>
+      <td class="num">${fmtINR(rev)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('dTopProducts').innerHTML = html;
+}
+
+// ----- BU Hierarchy view -----
+
+async function _renderHierarchy(opts) {
+  const { records } = opts;
+  const wrap = document.getElementById('dHierarchy');
+
+  const holders = await db.holders.toArray();
+  const active = holders.filter(h => h.isActive !== false);
+
+  // Identify BU Heads (anyone with at least one direct report)
+  const reportsByMgr = {};
+  for (const h of active) {
+    if (h.reportsTo) {
+      reportsByMgr[h.reportsTo] = reportsByMgr[h.reportsTo] || [];
+      reportsByMgr[h.reportsTo].push(h);
+    }
+  }
+
+  // Sum revenue by salesEmp (matching by name string)
+  const revByEmp = _sumBy(records, r => r.salesEmp);
+  // Also count direct attribution to BU Head (rare, but possible)
+  const bus = active.filter(h => (reportsByMgr[h.id] || []).length > 0);
+
+  if (bus.length === 0) {
+    wrap.innerHTML = '<div class="empty text-muted" style="padding:24px">No BU Heads with direct reports configured. Add holders with a "Reports to" relationship in the Targets tab.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const bu of bus.sort((a, b) => a.fullName.localeCompare(b.fullName))) {
+    const reports = reportsByMgr[bu.id] || [];
+    const buDirect = revByEmp[bu.fullName] || 0;
+    const repsRev = reports.map(r => ({ holder: r, rev: revByEmp[r.fullName] || 0 }));
+    const totalRev = buDirect + repsRev.reduce((s, x) => s + x.rev, 0);
+
+    html += `<div class="hierarchy-card bu-head">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1">
+          <div class="hh-name">${escapeHTML(bu.fullName)} <span class="text-muted" style="font-size:12px;font-weight:normal">· ${escapeHTML(bu.role)}${bu.region ? ' · ' + escapeHTML(bu.region) : ''}</span></div>
+          <div class="hh-meta">${reports.length} direct report${reports.length === 1 ? '' : 's'} · combined revenue</div>
+        </div>
+        <div class="hh-revenue">${fmtINR(totalRev)}</div>
+      </div>`;
+
+    if (totalRev > 0 && repsRev.length > 0) {
+      const maxRev = Math.max(buDirect, ...repsRev.map(x => x.rev));
+      html += '<div class="hh-children">';
+      // Direct attribution to BU head (if any)
+      if (buDirect > 0) {
+        const pct = totalRev > 0 ? (buDirect / totalRev * 100) : 0;
+        const barW = maxRev > 0 ? (buDirect / maxRev * 100) : 0;
+        html += `<div class="hh-child-row">
+          <span class="hh-child-name"><em class="text-muted">↳ ${escapeHTML(bu.fullName)} (direct)</em></span>
+          <span class="hh-child-bar"><span class="hh-child-bar-fill" style="width:${barW}%"></span></span>
+          <span class="hh-child-rev">${fmtINR(buDirect)}</span>
+          <span class="hh-child-pct">${pct.toFixed(0)}%</span>
+        </div>`;
+      }
+      for (const x of repsRev.sort((a, b) => b.rev - a.rev)) {
+        const pct = totalRev > 0 ? (x.rev / totalRev * 100) : 0;
+        const barW = maxRev > 0 ? (x.rev / maxRev * 100) : 0;
+        const muted = x.rev === 0 ? ' style="opacity:0.5"' : '';
+        const region = x.holder.region ? ` <span class="text-muted" style="font-size:11px">· ${escapeHTML(x.holder.region)}</span>` : '';
+        html += `<div class="hh-child-row"${muted}>
+          <span class="hh-child-name">${escapeHTML(x.holder.fullName)}${region}</span>
+          <span class="hh-child-bar"><span class="hh-child-bar-fill" style="width:${barW}%"></span></span>
+          <span class="hh-child-rev">${fmtINR(x.rev)}</span>
+          <span class="hh-child-pct">${pct.toFixed(0)}%</span>
+        </div>`;
+      }
+      html += '</div>';
+    } else if (totalRev === 0) {
+      html += '<div class="text-muted" style="font-size:12px;margin-top:8px;font-style:italic">No revenue attributed in this scope.</div>';
+    }
+
+    html += '</div>';
+  }
+
+  wrap.innerHTML = html;
+}
+
+// ----- Customer flow (gained + gone quiet) -----
+// Replaces YoY watchlist for the brand-new BU case.
+// gained: customers who first appeared in the scope window
+// gone quiet: customers who bought in prior 90 days (before scope-end) but
+//             nothing in the last 90 days (within or up to scope-end)
+
+function _renderCustomerFlow(opts) {
+  const { records, allSalesInDB, scopeFrom, scopeTo } = opts;
+
+  // Build a map of every customer's first purchase date across all data
+  const firstPurchase = {};
+  for (const r of (allSalesInDB || [])) {
+    if (r.isDemo || r.isAdjustment) continue;
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!firstPurchase[c] || r.postingDate < firstPurchase[c]) {
+      firstPurchase[c] = r.postingDate;
+    }
+  }
+
+  // Gained = customers whose first purchase is within scope window
+  const gainedRows = [];
+  const customersInScope = new Set(records.map(r => r.customerClean).filter(Boolean));
+  const cyByCust = _sumBy(records, r => r.customerClean);
+  for (const c of customersInScope) {
+    const fp = firstPurchase[c];
+    if (fp && fp >= scopeFrom && fp <= scopeTo) {
+      gainedRows.push({ name: c, firstSeen: fp, revenue: cyByCust[c] || 0 });
+    }
+  }
+  gainedRows.sort((a, b) => b.revenue - a.revenue);
+
+  // Gone quiet:
+  //   "prior" = (scopeTo - 180d) to (scopeTo - 90d) — purchased
+  //   "recent" = (scopeTo - 90d) to scopeTo — DIDN'T purchase
+  // Use full DB (not just current FY scope) so we don't miss cross-FY cases
+  const recentStart = _shiftDays(scopeTo, -90);
+  const priorStart = _shiftDays(scopeTo, -180);
+  const priorBuyers = new Set();
+  const recentBuyers = new Set();
+  const lastSeenInPrior = {};
+  const priorRev = {};
+  for (const r of (allSalesInDB || [])) {
+    if (r.isDemo || r.isAdjustment) continue;
+    const c = r.customerClean;
+    if (!c) continue;
+    if (r.postingDate >= priorStart && r.postingDate < recentStart) {
+      priorBuyers.add(c);
+      if (!lastSeenInPrior[c] || r.postingDate > lastSeenInPrior[c]) {
+        lastSeenInPrior[c] = r.postingDate;
+      }
+      priorRev[c] = (priorRev[c] || 0) + (r.netValueINR || 0);
+    } else if (r.postingDate >= recentStart && r.postingDate <= scopeTo) {
+      recentBuyers.add(c);
+    }
+  }
+  const quietRows = [];
+  for (const c of priorBuyers) {
+    if (!recentBuyers.has(c)) {
+      quietRows.push({
+        name: c,
+        lastSeen: lastSeenInPrior[c],
+        priorRev: priorRev[c] || 0
+      });
+    }
+  }
+  quietRows.sort((a, b) => b.priorRev - a.priorRev);
+
+  // Render
+  function gainedTable(rows) {
+    if (rows.length === 0) {
+      return '<div class="empty text-muted" style="padding:24px">No new customers in this scope.</div>';
+    }
+    let html = `<table class="top-n"><thead><tr>
+      <th>Customer</th><th>First Seen</th><th class="num">Revenue</th>
+    </tr></thead><tbody>`;
+    for (const r of rows.slice(0, 10)) {
+      html += `<tr>
+        <td>${escapeHTML(r.name)}</td>
+        <td class="mono" style="font-size:11px">${escapeHTML(r.firstSeen)}</td>
+        <td class="num">${fmtINR(r.revenue)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    if (rows.length > 10) {
+      html += `<div class="text-muted" style="font-size:11px;margin-top:8px">+ ${rows.length - 10} more</div>`;
+    }
+    return html;
+  }
+
+  function quietTable(rows) {
+    if (rows.length === 0) {
+      return '<div class="empty text-muted" style="padding:24px">No customers gone quiet.</div>';
+    }
+    let html = `<table class="top-n"><thead><tr>
+      <th>Customer</th><th>Last Seen</th><th class="num">Prior 3mo Rev</th>
+    </tr></thead><tbody>`;
+    for (const r of rows.slice(0, 10)) {
+      html += `<tr>
+        <td>${escapeHTML(r.name)}</td>
+        <td class="mono" style="font-size:11px">${escapeHTML(r.lastSeen)}</td>
+        <td class="num">${fmtINR(r.priorRev)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    if (rows.length > 10) {
+      html += `<div class="text-muted" style="font-size:11px;margin-top:8px">+ ${rows.length - 10} more</div>`;
+    }
+    return html;
+  }
+
+  document.getElementById('dGained').innerHTML = gainedTable(gainedRows);
+  document.getElementById('dQuiet').innerHTML = quietTable(quietRows);
+}
+
+// ----- Customer Loyalty Profile (frequency table) -----
+// Buckets customers in scope by # of unique invoices: 1×, 2×, 3×, 4×+
+
+function _renderLoyaltyProfile(opts) {
+  const { records } = opts;
+  const wrap = document.getElementById('dLoyalty');
+
+  // Group by clean customer name; count unique invoice numbers + sum revenue
+  const invByCust = {};
+  const revByCust = {};
+  for (const r of records) {
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!invByCust[c]) invByCust[c] = new Set();
+    invByCust[c].add(r.docNumber);
+    revByCust[c] = (revByCust[c] || 0) + (r.netValueINR || 0);
+  }
+
+  const totalCusts = Object.keys(invByCust).length;
+  if (totalCusts === 0) {
+    wrap.innerHTML = '<div class="empty">No customer data in this scope.</div>';
+    return;
+  }
+  const totalRev = Object.values(revByCust).reduce((s, v) => s + v, 0);
+
+  const buckets = {
+    '1×': { label: '1× (single buy)', custs: [], rev: 0 },
+    '2×': { label: '2×',              custs: [], rev: 0 },
+    '3×': { label: '3×',              custs: [], rev: 0 },
+    '4×+': { label: '4× or more',     custs: [], rev: 0 }
+  };
+
+  for (const [c, set] of Object.entries(invByCust)) {
+    const n = set.size;
+    const rev = revByCust[c] || 0;
+    const key = n === 1 ? '1×' : n === 2 ? '2×' : n === 3 ? '3×' : '4×+';
+    buckets[key].custs.push({ name: c, count: n, rev });
+    buckets[key].rev += rev;
+  }
+
+  // Render table
+  let html = `<table class="brand-matrix" style="margin-top:10px">
+    <thead><tr>
+      <th>Order count</th>
+      <th class="num"># Customers</th>
+      <th class="num">% of base</th>
+      <th class="num">Revenue</th>
+      <th class="num">% of revenue</th>
+    </tr></thead><tbody>`;
+
+  const order = ['1×', '2×', '3×', '4×+'];
+  for (const k of order) {
+    const b = buckets[k];
+    const cnt = b.custs.length;
+    const pctBase = totalCusts > 0 ? (cnt / totalCusts * 100) : 0;
+    const pctRev = totalRev > 0 ? (b.rev / totalRev * 100) : 0;
+    const isHero = k === '4×+';
+    const cls = isHero ? 'style="background:rgba(16,185,129,0.06);font-weight:600"' : '';
+    html += `<tr ${cls}>
+      <td>${escapeHTML(b.label)}</td>
+      <td class="num">${cnt}</td>
+      <td class="num">${pctBase.toFixed(0)}%</td>
+      <td class="num">${fmtINR(b.rev)}</td>
+      <td class="num">${pctRev.toFixed(0)}%</td>
+    </tr>`;
+  }
+
+  // Summary footer
+  const repeatCusts = totalCusts - buckets['1×'].custs.length;
+  const repeatRev = totalRev - buckets['1×'].rev;
+  const repeatCustPct = totalCusts > 0 ? (repeatCusts / totalCusts * 100) : 0;
+  const repeatRevPct = totalRev > 0 ? (repeatRev / totalRev * 100) : 0;
+  html += `<tr class="row-portfolio">
+    <td><strong>Repeat (2×+)</strong></td>
+    <td class="num">${repeatCusts}</td>
+    <td class="num">${repeatCustPct.toFixed(0)}%</td>
+    <td class="num">${fmtINR(repeatRev)}</td>
+    <td class="num">${repeatRevPct.toFixed(0)}%</td>
+  </tr>`;
+  html += '</tbody></table>';
+
+  // Top 5 most-frequent repeat customers
+  const topRepeat = Object.entries(invByCust)
+    .map(([c, set]) => ({ name: c, count: set.size, rev: revByCust[c] || 0 }))
+    .filter(x => x.count >= 2)
+    .sort((a, b) => b.count - a.count || b.rev - a.rev)
+    .slice(0, 5);
+  if (topRepeat.length > 0) {
+    html += '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)"><div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Most loyal customers (by order count)</div>';
+    html += '<table class="top-n">';
+    html += '<thead><tr><th style="width:30px">#</th><th>Customer</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>';
+    for (let i = 0; i < topRepeat.length; i++) {
+      const x = topRepeat[i];
+      html += `<tr>
+        <td><span class="rank">${i + 1}</span></td>
+        <td>${escapeHTML(x.name)}</td>
+        <td class="num">${x.count}×</td>
+        <td class="num">${fmtINR(x.rev)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+
+  wrap.innerHTML = html;
+}
+
+// ----- Master orchestrator -----
+
+let _dashboardMode = 'ytd';   // 'ytd' or 'range'
+
+async function renderDashboard() {
+  const fy = document.getElementById('dFY').value || DEFAULT_TARGET_FY;
+  const brand = document.getElementById('dBrand').value;
+  const excludeDemo = document.getElementById('dExcludeDemo').checked;
+
+  // Determine scope window based on mode
+  let scopeFrom, scopeTo;
+  if (_dashboardMode === 'range') {
+    scopeFrom = document.getElementById('dFrom').value;
+    scopeTo = document.getElementById('dTo').value;
+    if (!scopeFrom || !scopeTo) {
+      const m = fy.match(/^FY(\d{2})-(\d{2})$/);
+      if (m) {
+        const sy = 2000 + parseInt(m[1]);
+        scopeFrom = `${sy}-04-01`;
+        scopeTo = `${sy + 1}-03-31`;
+      }
+    }
+  } else {
+    const m = fy.match(/^FY(\d{2})-(\d{2})$/);
+    if (m) {
+      const sy = 2000 + parseInt(m[1]);
+      scopeFrom = `${sy}-04-01`;
+    }
+    scopeTo = document.getElementById('dAsOf').value
+              || new Date().toISOString().slice(0, 10);
+  }
+
+  // Pull all records once
+  const allSales = await db.sales.toArray();
+  const allTargets = await db.targets.where('fiscalYear').equals(fy).toArray();
+  const holders = await db.holders.toArray();
+  const holderMap = Object.fromEntries(holders.map(h => [h.id, h]));
+
+  // Filter for the selected scope
+  let records;
+  if (_dashboardMode === 'range') {
+    records = _filterRecords(allSales, { brand, excludeDemo, from: scopeFrom, to: scopeTo });
+  } else {
+    records = _filterRecords(allSales, { fy, brand, excludeDemo, asOf: scopeTo });
+  }
+
+  const monthsElapsed = Pace.monthsElapsed(fy, new Date(scopeTo));
+
+  // Last full month + prior month windows (cross-FY aware: NOT bounded by FY start)
+  const lastMonthW = _getLastFullMonthCrossFY(scopeTo);
+  const recordsLastMonth = lastMonthW
+    ? _filterRecords(allSales, { brand, excludeDemo, from: lastMonthW.from, to: lastMonthW.to })
+    : [];
+  const priorMonthW = lastMonthW ? _getPriorMonthOf(lastMonthW.from) : null;
+  const recordsPriorMonth = priorMonthW
+    ? _filterRecords(allSales, { brand, excludeDemo, from: priorMonthW.from, to: priorMonthW.to })
+    : [];
+
+  // Last 3mo / Prior 3mo (PoP)
+  const last3From = _shiftDays(scopeTo, -90);
+  const prior3From = _shiftDays(scopeTo, -180);
+  const prior3To = _shiftDays(scopeTo, -91);
+  const recordsLast3mo = _filterRecords(allSales, {
+    brand, excludeDemo, from: last3From, to: scopeTo
+  });
+  const recordsPrior3mo = _filterRecords(allSales, {
+    brand, excludeDemo, from: prior3From, to: prior3To
+  });
+
+  // YoY Same-Period: shift entire scope window back exactly 1 year
+  const yoyFrom = _priorFYAsOf(scopeFrom, fy);
+  const yoyTo = _priorFYAsOf(scopeTo, fy);
+  const recordsYoYSame = (yoyFrom && yoyTo)
+    ? _filterRecords(allSales, { brand, excludeDemo, from: yoyFrom, to: yoyTo })
+    : [];
+
+  // YoY Full-Year LY: prior FY's complete year
+  const priorFY = _priorFY(fy);
+  const recordsLYFullYear = priorFY
+    ? _filterRecords(allSales, { fy: priorFY, brand, excludeDemo })
+    : [];
+
+  // Top customers "prior" comparison: equal-length prior window
+  let recordsPrior;
+  if (_dashboardMode === 'range') {
+    const fromD = new Date(scopeFrom);
+    const toD = new Date(scopeTo);
+    const dur = Math.max(1, Math.round((toD - fromD) / 86400000));
+    const priorTo = _shiftDays(scopeFrom, -1);
+    const priorFromCalc = _shiftDays(priorTo, -dur);
+    recordsPrior = _filterRecords(allSales, { brand, excludeDemo, from: priorFromCalc, to: priorTo });
+  } else {
+    recordsPrior = recordsPrior3mo;
+  }
+
+  const opts = {
+    records, recordsLastMonth, recordsPriorMonth, recordsLast3mo, recordsPrior3mo,
+    recordsYoYSame, recordsLYFullYear,
+    recordsPrior, allSalesInDB: allSales,
+    scopeFrom, scopeTo, fy, asOf: scopeTo, brand, mode: _dashboardMode,
+    targets: allTargets, allTargets, monthsElapsed, holderMap
+  };
+
+  _renderKPIs(opts);
+  _renderBrandMatrix(opts);
+  _renderMonthlyChart(opts);
+  _renderTopCustomers(opts);
+  _renderTopProducts(opts);
+  await _renderHierarchy(opts);
+  _renderCustomerFlow(opts);
+  _renderLoyaltyProfile(opts);
+}
+
+// Cross-FY-aware "last full month" from a given asOf date.
+// Returns { from, to } as ISO dates, or null if asOf is too early.
+// Last full month = current month if asOf is its last day, else previous month.
+function _getLastFullMonthCrossFY(asOfStr) {
+  const asOf = new Date(asOfStr);
+  if (isNaN(asOf.getTime())) return null;
+  const lastDayOfAsOfMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0).getDate();
+  const currentMonthComplete = (asOf.getDate() === lastDayOfAsOfMonth);
+  let lmYear, lmMonth;
+  if (currentMonthComplete) {
+    lmYear = asOf.getFullYear();
+    lmMonth = asOf.getMonth();
+  } else {
+    const prev = new Date(asOf.getFullYear(), asOf.getMonth(), 0);
+    lmYear = prev.getFullYear();
+    lmMonth = prev.getMonth();
+  }
+  return {
+    from: new Date(lmYear, lmMonth, 1).toISOString().slice(0, 10),
+    to:   new Date(lmYear, lmMonth + 1, 0).toISOString().slice(0, 10)
+  };
+}
+
+// Prior-month window of a month identified by its 1st-day-of-month ISO date
+function _getPriorMonthOf(monthFromISO) {
+  const d = new Date(monthFromISO);
+  if (isNaN(d.getTime())) return null;
+  const pmDate = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  return {
+    from: pmDate.toISOString().slice(0, 10),
+    to:   new Date(pmDate.getFullYear(), pmDate.getMonth() + 1, 0).toISOString().slice(0, 10)
+  };
+}
+
+async function populateDashboardFYSelector() {
+  const sel = document.getElementById('dFY');
+  if (!sel) return;
+  const fys = await getAvailableFYs();
+  const cur = sel.value;
+  sel.innerHTML = fys.map(f => `<option value="${f}">${f}</option>`).join('');
+  if (fys.includes(cur)) {
+    sel.value = cur;
+  } else {
+    // Default: prefer the LATEST FY available (which is the current FY).
+    // Fall back to DEFAULT_TARGET_FY if no sales data exists.
+    if (fys.length > 0) {
+      // FYs come back sorted ascending; last one is latest
+      sel.value = fys[fys.length - 1];
+    } else {
+      sel.value = DEFAULT_TARGET_FY;
+    }
+  }
+}
+
+// ============= 14. BACKUP / RESTORE — v2 (replaces v1 above) =============
+
+async function exportDB() {
+  const sales = await db.sales.toArray();
+  const unmapped = await db.unmapped.toArray();
+  const holders = await db.holders.toArray();
+  const targets = await db.targets.toArray();
+  const payload = {
+    app: 'CavitakSalesReview',
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    counts: {
+      sales: sales.length,
+      unmapped: unmapped.length,
+      holders: holders.length,
+      targets: targets.length
+    },
+    sales, unmapped, holders, targets
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `cavitak-sales-backup-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importDB(file) {
+  let payload;
+  try {
+    const text = await file.text();
+    payload = JSON.parse(text);
+  } catch (e) {
+    alert('Could not parse JSON file: ' + e.message);
+    return;
+  }
+  if (payload.app !== 'CavitakSalesReview' || !Array.isArray(payload.sales)) {
+    alert('This file does not look like a Cavitak Sales Review backup.');
+    return;
+  }
+  if (payload.schemaVersion > SCHEMA_VERSION) {
+    if (!confirm(`This backup was made with schema v${payload.schemaVersion}, but this app is v${SCHEMA_VERSION}. Importing may lose newer fields. Continue?`)) return;
+  }
+  let added = 0, skipped = 0, errors = 0;
+  let hAdded = 0, tAdded = 0;
+  await db.transaction('rw', db.sales, db.unmapped, db.holders, db.targets, async () => {
+    // Sales (existing logic)
+    for (const r of payload.sales) {
+      try {
+        const existing = await db.sales.where('fingerprint').equals(r.fingerprint).first();
+        if (existing) { skipped++; continue; }
+        const { id, ...clean } = r;
+        await db.sales.add(clean);
+        added++;
+      } catch (e) { errors++; console.error(e); }
+    }
+    if (Array.isArray(payload.unmapped)) {
+      for (const u of payload.unmapped) {
+        try {
+          const ex = await db.unmapped.where('itemNo').equals(u.itemNo).first();
+          if (!ex) {
+            const { id, ...clean } = u;
+            await db.unmapped.add(clean);
+          }
+        } catch (e) {}
+      }
+    }
+    // Holders: dedupe by fullName (case-insensitive)
+    if (Array.isArray(payload.holders)) {
+      for (const h of payload.holders) {
+        try {
+          const existing = await db.holders
+            .filter(x => x.fullName.toLowerCase() === h.fullName.toLowerCase())
+            .first();
+          if (!existing) {
+            const { id, ...clean } = h;
+            await db.holders.add(clean);
+            hAdded++;
+          }
+        } catch (e) { errors++; }
+      }
+    }
+    // Targets: dedupe by [fy, scope, scopeKey]
+    if (Array.isArray(payload.targets)) {
+      for (const t of payload.targets) {
+        try {
+          const existing = await db.targets
+            .where('[fiscalYear+scope+scopeKey]')
+            .equals([t.fiscalYear, t.scope, t.scopeKey]).first();
+          if (!existing) {
+            const { id, ...clean } = t;
+            await db.targets.add(clean);
+            tAdded++;
+          }
+        } catch (e) { errors++; }
+      }
+    }
+  });
+  alert(`Restore complete.\n\n• ${added} new sales records\n• ${skipped} sales duplicates skipped\n• ${hAdded} holders added\n• ${tAdded} targets added\n• ${errors} errors`);
+  await renderDbStats();
+  await renderRecordsTable();
+  await renderHeaderStats();
+  await renderHolders();
+  await populateFYSelector();
+  await renderMatrix();
+}
+
+
+
+
+document.addEventListener('DOMContentLoaded', async () => {
+
+  // Tabs
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById('tab-' + tab).classList.remove('hidden');
+    });
+  });
+
+  // Drop zone
+  const dz = document.getElementById('dz');
+  const fi = document.getElementById('fileInput');
+  dz.addEventListener('click', () => fi.click());
+  fi.addEventListener('change', e => {
+    if (e.target.files[0]) importFile(e.target.files[0]);
+    fi.value = '';
+  });
+  ['dragenter','dragover'].forEach(ev =>
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev =>
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer.files[0]) importFile(e.dataTransfer.files[0]);
+  });
+
+  // Records filters
+  ['rSearch','rBrand','rFY','rState','rDemoAdj'].forEach(id => {
+    document.getElementById(id).addEventListener('input', applyRecordsFilter);
+    document.getElementById(id).addEventListener('change', applyRecordsFilter);
+  });
+
+  // Backup buttons
+  document.getElementById('btnExport').addEventListener('click', exportDB);
+  document.getElementById('importJsonFile').addEventListener('change', e => {
+    if (e.target.files[0]) {
+      importDB(e.target.files[0]);
+      e.target.value = '';
+    }
+  });
+
+  // Wipe modal
+  const wipeModal  = document.getElementById('wipeModal');
+  const wipeInput  = document.getElementById('wipeConfirm');
+  const wipeOk     = document.getElementById('wipeOk');
+  const wipeCancel = document.getElementById('wipeCancel');
+  document.getElementById('btnWipe').addEventListener('click', async () => {
+    const c = await db.sales.count();
+    document.getElementById('wipeCount').textContent = c.toLocaleString('en-IN');
+    wipeInput.value = '';
+    wipeOk.disabled = true;
+    wipeModal.classList.remove('hidden');
+  });
+  wipeInput.addEventListener('input', () => {
+    wipeOk.disabled = wipeInput.value !== 'WIPE';
+  });
+  wipeCancel.addEventListener('click', () => wipeModal.classList.add('hidden'));
+  wipeOk.addEventListener('click', async () => {
+    await wipeDB();
+    wipeModal.classList.add('hidden');
+  });
+
+  // Initial paint
+  await renderHeaderStats();
+  await renderDbStats();
+  await renderRecordsTable();
+
+  // ============ PHASE 2 WIRING ============
+
+  // Sub-tabs (within Targets)
+  document.querySelectorAll('.subtab-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.subtab-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById('sub-' + btn.dataset.subtab).classList.remove('hidden');
+      // Refresh matrix when switching to it
+      if (btn.dataset.subtab === 'matrix') {
+        await populateFYSelector();
+        await renderMatrix();
+      }
+    });
+  });
+
+  // Holder buttons
+  document.getElementById('btnAddHolder').addEventListener('click', () => openHolderModal());
+  document.getElementById('hCancel').addEventListener('click', closeHolderModal);
+  document.getElementById('hSave').addEventListener('click', saveHolderFromModal);
+  document.getElementById('hDelete').addEventListener('click', deleteHolder);
+
+  // FY selector + rebuild
+  document.getElementById('tFY').addEventListener('change', renderMatrix);
+  document.getElementById('btnRebuildMatrix').addEventListener('click', async () => {
+    const fy = document.getElementById('tFY').value;
+    const result = await rebuildMatrixRows(fy);
+    if (result.removed > 0) {
+      alert(`Removed ${result.removed} obsolete blank target row(s). Existing entered values preserved as "Orphaned".`);
+    }
+    await renderMatrix();
+  });
+
+  // Initial Phase 2 paint
+  await seedRosterIfNeeded();
+  await renderHolders();
+  await populateFYSelector();
+  await renderMatrix();
+
+  // ============ PHASE 3 WIRING ============
+
+  // Default the "As of" date to today
+  const dAsOfEl = document.getElementById('dAsOf');
+  if (dAsOfEl && !dAsOfEl.value) {
+    dAsOfEl.value = new Date().toISOString().slice(0, 10);
+  }
+
+  // Default range mode dates: last 90 days
+  const dFromEl = document.getElementById('dFrom');
+  const dToEl = document.getElementById('dTo');
+  if (dToEl && !dToEl.value) dToEl.value = new Date().toISOString().slice(0, 10);
+  if (dFromEl && !dFromEl.value) {
+    const d = new Date(); d.setDate(d.getDate() - 90);
+    dFromEl.value = d.toISOString().slice(0, 10);
+  }
+
+  // Dashboard filter listeners — re-render on change
+  ['dFY', 'dBrand', 'dAsOf', 'dExcludeDemo', 'dFrom', 'dTo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', renderDashboard);
+    }
+  });
+
+  // Mode toggle (YTD vs Range)
+  document.querySelectorAll('.btn-mode').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      _dashboardMode = mode;
+      document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Show/hide control groups
+      const ytdC = document.getElementById('dYtdControls');
+      const rangeC = document.getElementById('dRangeControls');
+      if (mode === 'ytd') {
+        ytdC.style.display = 'flex';
+        rangeC.style.display = 'none';
+      } else {
+        ytdC.style.display = 'none';
+        rangeC.style.display = 'flex';
+      }
+      renderDashboard();
+    });
+  });
+
+  // Manual refresh button
+  document.getElementById('btnRefreshDash').addEventListener('click', async () => {
+    await populateDashboardFYSelector();
+    await renderDashboard();
+  });
+
+  // When the Dashboard tab is clicked, populate FY selector + render fresh
+  document.querySelectorAll('.tab-btn[data-tab="dashboard"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await populateDashboardFYSelector();
+      await renderDashboard();
+    });
+  });
+});
+</script>
+</body>
+</html>
