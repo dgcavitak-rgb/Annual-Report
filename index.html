@@ -6,7 +6,7 @@
 <title>Cavitak Sales Review · Portfolio P&L Tool</title>
 
 <!-- SheetJS for CSV/XLSX parsing (read side; write side comes in Phase 4) -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <!-- Dexie for IndexedDB -->
 <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.7/dist/dexie.min.js"></script>
 <!-- Chart.js for dashboard visualizations -->
@@ -20,12 +20,13 @@
      ============================================================ */
 
   :root {
-    --bg-0: #0F0E1A;            /* page background */
-    --bg-1: #1A1830;            /* card background */
-    --bg-2: #232041;            /* elevated card */
-    --bg-3: #2D2952;
-    --line: #312E81;
-    --line-soft: #3F3B73;
+    /* Fintech dark palette — closer to Linear/Vercel/Stripe dark mode */
+    --bg-0: #0A0A0F;            /* page background — near-black */
+    --bg-1: #11111B;            /* card background */
+    --bg-2: #18182A;            /* elevated card */
+    --bg-3: #1F1F38;
+    --line: #1E1E2E;            /* hairline borders, very subtle */
+    --line-soft: #2A2A3F;
 
     --indigo-deep: #1E1B4B;
     --indigo:      #312E81;
@@ -35,20 +36,28 @@
     --lavender:    #C7D2FE;
     --lavender-pale: #EEF2FF;
 
-    --green: #10B981;
-    --amber: #F59E0B;
+    --green: #22C55E;
+    --green-soft: #4ADE80;
+    --amber: #EAB308;
+    --amber-soft: #FACC15;
     --red:   #EF4444;
+    --red-soft: #F87171;
 
-    --text-0: #F5F3FF;          /* primary text */
-    --text-1: #C7D2FE;          /* secondary */
-    --text-2: #8B86B8;          /* tertiary / labels */
-    --text-3: #5B5680;          /* muted */
+    --text-0: #FAFAFA;          /* primary text — near-white */
+    --text-1: #C9C9D6;          /* secondary */
+    --text-2: #7B7B92;          /* tertiary / labels */
+    --text-3: #4B4B62;          /* muted */
 
-    --radius: 12px;
-    --radius-sm: 8px;
+    /* Subtle accent for tiles */
+    --tile-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
+    --tile-shadow-hover: 0 4px 12px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.3);
+
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
 
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --mono: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Consolas', 'Monaco', monospace;
   }
 
   * { box-sizing: border-box; }
@@ -146,19 +155,25 @@
   /* ====== Cards ====== */
   .card {
     background: var(--bg-1);
-    border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 24px;
+    padding: 24px 28px;
     margin-bottom: 20px;
+    box-shadow: var(--tile-shadow);
+    transition: box-shadow 0.2s;
   }
+  .card:hover { box-shadow: var(--tile-shadow-hover); }
   .card h2 {
-    margin: 0 0 4px;
-    font-size: 16px; font-weight: 600;
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 600;
     color: var(--text-0);
+    letter-spacing: -0.01em;
   }
   .card .sub {
-    color: var(--text-2); font-size: 13px;
-    margin-bottom: 20px;
+    color: var(--text-2);
+    font-size: 12.5px;
+    margin-bottom: 18px;
+    line-height: 1.5;
   }
 
   /* ====== Drop zone ====== */
@@ -243,6 +258,234 @@
   }
   .stat-tile .sub {
     font-size: 12px; color: var(--text-2); margin-top: 2px;
+  }
+
+  /* ====== HERO TILE (v0.8 — full-width prominent tile at top of Dashboard) ====== */
+  .kpi-hero {
+    background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--tile-shadow);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .kpi-hero:hover {
+    box-shadow: 0 8px 32px rgba(99,102,241,0.25), 0 0 0 1px rgba(99,102,241,0.4);
+  }
+  .kpi-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 180px; height: 100%;
+    background: radial-gradient(circle at top right, rgba(124,58,237,0.18), transparent 60%);
+    pointer-events: none;
+  }
+  .kpi-hero-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-2);
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kpi-hero-label::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green-soft);
+    animation: hero-pulse 2s ease-in-out infinite;
+  }
+  @keyframes hero-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+  }
+  .kpi-hero-value {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--text-0);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .kpi-hero-secondary {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .kpi-hero-meta {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-1);
+    line-height: 1.5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+  }
+  .kpi-hero-meta strong {
+    color: var(--text-0);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-hero-spark {
+    position: absolute;
+    bottom: 16px; right: 16px;
+    width: 220px; height: 60px;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  /* Smooth count-up number animation helper */
+  .num-animate {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .num-animate.bump {
+    transform: scale(1.05);
+  }
+
+  /* Reveal-on-load for KPI tiles */
+  @keyframes tile-reveal {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .kpi-tile, .kpi-hero {
+    animation: tile-reveal 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+  .kpi-tile:nth-child(1) { animation-delay: 0.05s; }
+  .kpi-tile:nth-child(2) { animation-delay: 0.1s; }
+  .kpi-tile:nth-child(3) { animation-delay: 0.15s; }
+  .kpi-tile:nth-child(4) { animation-delay: 0.2s; }
+  .kpi-tile:nth-child(5) { animation-delay: 0.25s; }
+  .kpi-tile:nth-child(6) { animation-delay: 0.3s; }
+
+  /* ====== MOBILE-FIRST RESPONSIVE BREAKPOINTS ====== */
+  @media (max-width: 768px) {
+    /* Tighter card padding on phone */
+    .card { padding: 18px 16px; margin-bottom: 14px; }
+    .card h2 { font-size: 14px; }
+    .card .sub { font-size: 11.5px; margin-bottom: 14px; }
+
+    /* Hero tile scales smaller on phone but stays prominent */
+    .kpi-hero { padding: 22px 20px 80px; }
+    .kpi-hero-value { font-size: 36px; }
+    .kpi-hero-spark { width: 180px; height: 50px; bottom: 14px; right: 14px; opacity: 0.7; }
+    .kpi-hero-meta { font-size: 12px; gap: 14px; }
+
+    /* KPI tile grid: 2 columns on phone (was 4 on desktop) */
+    .stat-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 10px;
+    }
+    .kpi-tile {
+      padding: 14px 14px 12px;
+      min-height: 100px;
+    }
+    .kpi-tile .kpi-value {
+      font-size: 22px;
+    }
+    .kpi-tile .kpi-label {
+      font-size: 10px;
+      letter-spacing: 0.04em;
+    }
+    .kpi-tile .kpi-sub {
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+    .kpi-spark {
+      width: 60px; height: 18px; bottom: 10px; right: 10px;
+    }
+
+    /* Filter bar stacks vertically on phone */
+    .card[style*="padding:16px"] > div {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 10px !important;
+    }
+    .card[style*="padding:16px"] > div > div,
+    .card[style*="padding:16px"] > div > label {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .card[style*="padding:16px"] > div select,
+    .card[style*="padding:16px"] > div input[type="date"] {
+      flex: 1;
+      max-width: 220px;
+    }
+
+    /* Stack two-column dashboard sections on phone */
+    [style*="grid-template-columns:1fr 1fr"],
+    [style*="grid-template-columns: 1fr 1fr"],
+    [style*="grid-template-columns:1.4fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Brand matrix table — make scrollable horizontally */
+    table.brand-matrix {
+      font-size: 11px;
+    }
+    table.brand-matrix th, table.brand-matrix td {
+      padding: 8px 6px;
+    }
+    /* Wrap matrix table in scroll container if it overflows */
+    #dBrandMatrix {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Top-N tables */
+    table.top-n {
+      font-size: 11px;
+    }
+    table.top-n th, table.top-n td {
+      padding: 6px 6px;
+    }
+
+    /* KPI row labels */
+    .kpi-row-label {
+      font-size: 10px;
+      margin: 12px 0 6px 2px;
+    }
+
+    /* Header / page banner */
+    .meta-stat { padding: 10px 14px; font-size: 12px; }
+    h1 { font-size: 22px; }
+
+    /* Tab buttons get more compact on phone */
+    .tab-btn {
+      padding: 8px 12px !important;
+      font-size: 12px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    /* Even more compact for very narrow phones */
+    .kpi-hero-value { font-size: 30px; }
+    .kpi-hero-spark { display: none; }  /* no room — sparkline hidden, hero gets full width */
+    .kpi-tile .kpi-value { font-size: 18px; }
+    .kpi-tile .kpi-sub { font-size: 9.5px; }
+  }
+
+  /* Tablet / small desktop */
+  @media (min-width: 769px) and (max-width: 1100px) {
+    .stat-grid {
+      grid-template-columns: repeat(3, 1fr) !important;
+    }
+  }
+
+  /* Large desktop */
+  @media (min-width: 1101px) {
+    .stat-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
   }
 
   /* ====== Tables ====== */
@@ -553,14 +796,236 @@
   .kpi-row-label {
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     color: var(--text-2);
     font-weight: 600;
-    margin: 8px 0 8px 4px;
+    margin: 16px 0 10px 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
-  .kpi-row { gap: 10px !important; }
+  .kpi-row-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--line-soft), transparent);
+    margin-left: 4px;
+  }
+  .kpi-row { gap: 12px !important; }
 
-  .btn-mode {
+  /* ====== v1.0 — Executive narrative card ====== */
+  .exec-summary {
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(124,58,237,0.06));
+    border: 1px solid rgba(99,102,241,0.18);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .exec-summary::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--indigo-bright), var(--violet));
+  }
+  .exec-summary-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--lavender);
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .exec-summary-label::before {
+    content: '📋';
+    font-size: 14px;
+  }
+  .exec-summary-text {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text-0);
+    font-weight: 400;
+  }
+  .exec-summary-text strong {
+    color: var(--text-0);
+    font-weight: 700;
+    background: linear-gradient(180deg, transparent 60%, rgba(124,58,237,0.25) 60%);
+    padding: 0 2px;
+  }
+  .exec-summary-text .num-good {
+    color: var(--green-soft);
+    font-weight: 600;
+  }
+  .exec-summary-text .num-bad {
+    color: var(--red-soft);
+    font-weight: 600;
+  }
+  .exec-summary-text .num-neutral {
+    color: var(--lavender);
+    font-weight: 600;
+  }
+
+  /* Section headers (Performance / Customer Story / Operations) */
+  .kpi-section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 8px 4px;
+    margin: 28px 0 14px;
+  }
+  .kpi-section-num {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(124,58,237,0.18));
+    border: 1px solid rgba(99,102,241,0.25);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--lavender);
+    letter-spacing: -0.02em;
+  }
+  .kpi-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-0);
+    letter-spacing: -0.01em;
+    margin-bottom: 2px;
+  }
+  .kpi-section-sub {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.5;
+    max-width: 560px;
+  }
+  .kpi-collapse-hint {
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-left: 8px;
+    font-weight: 500;
+  }
+  .kpi-collapse {
+    margin-bottom: 8px;
+  }
+  .kpi-collapse summary { list-style: none; }
+  .kpi-collapse summary::-webkit-details-marker { display: none; }
+  .kpi-collapse[open] .kpi-collapse-hint::before { content: '▴ tap to collapse'; }
+  .kpi-collapse[open] .kpi-collapse-hint { font-size: 0; }
+  .kpi-collapse[open] .kpi-collapse-hint::before { font-size: 10px; }
+
+  /* Mobile tweaks for new components */
+  @media (max-width: 768px) {
+    .exec-summary { padding: 18px 18px; }
+    .exec-summary-text { font-size: 14px; line-height: 1.6; }
+    .kpi-section-header { gap: 12px; margin: 20px 0 10px; }
+    .kpi-section-num { width: 30px; height: 30px; font-size: 11px; }
+    .kpi-section-title { font-size: 14px; }
+    .kpi-section-sub { font-size: 11px; }
+  }
+
+  /* ====== v1.0 — Quick Numbers (Bloomberg-style dense panel) ====== */
+  .quick-numbers {
+    background: var(--bg-1);
+    border: 1px solid var(--line-soft);
+    margin-bottom: 20px;
+  }
+  .quick-numbers-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-0);
+    letter-spacing: -0.01em;
+  }
+  .quick-numbers-sub {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-top: 2px;
+  }
+  .quick-numbers-stamp {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .qn-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .qn-cell {
+    background: var(--bg-1);
+    padding: 12px 14px;
+    transition: background 0.15s;
+    cursor: default;
+    position: relative;
+  }
+  .qn-cell:hover { background: var(--bg-2); }
+  .qn-cell.qn-section-break {
+    grid-column: 1 / -1;
+    background: linear-gradient(90deg, var(--bg-2), var(--bg-1));
+    padding: 6px 14px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--lavender);
+    font-weight: 700;
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .qn-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-2);
+    font-weight: 500;
+    margin-bottom: 4px;
+    line-height: 1.3;
+    min-height: 26px;
+  }
+  .qn-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-0);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .qn-value.qn-good { color: var(--green-soft); }
+  .qn-value.qn-bad  { color: var(--red-soft); }
+  .qn-value.qn-warn { color: var(--amber-soft); }
+  .qn-meta {
+    font-size: 10px;
+    color: var(--text-3);
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+  }
+
+  @media (max-width: 768px) {
+    .qn-grid { grid-template-columns: repeat(2, 1fr); }
+    .qn-cell { padding: 10px 12px; }
+    .qn-value { font-size: 16px; }
+    .qn-label { min-height: 24px; }
+  }
+  @media (max-width: 480px) {
+    .qn-value { font-size: 14px; }
+  }
+
     transition: all 0.15s ease;
   }
   .btn-mode.active {
@@ -571,45 +1036,165 @@
     background: var(--bg-3) !important;
     color: var(--text-1) !important;
   }
+
+  /* Fintech-style KPI tile (replaces the old gradient-bar tile) */
   .kpi-tile {
     background: var(--bg-1);
-    border: 1px solid var(--line);
     border-radius: var(--radius);
     padding: 16px 18px;
     position: relative;
     overflow: hidden;
+    box-shadow: var(--tile-shadow);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
   }
-  .kpi-tile::before {
+  .kpi-tile::before { display: none; }  /* remove the old top gradient bar */
+  .kpi-tile:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--tile-shadow-hover);
+    background: var(--bg-2);
+  }
+  /* Status accent: thin vertical bar on the left */
+  .kpi-tile::after {
     content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--indigo-bright), var(--violet));
-    opacity: 0.6;
+    position: absolute;
+    left: 0; top: 18px; bottom: 18px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: transparent;
+    transition: all 0.2s;
   }
-  .kpi-tile.green::before { background: linear-gradient(90deg, var(--green), #34D399); }
-  .kpi-tile.amber::before { background: linear-gradient(90deg, var(--amber), #FCD34D); }
-  .kpi-tile.red::before   { background: linear-gradient(90deg, var(--red), #FCA5A5); }
-  .kpi-tile.muted::before { background: var(--text-3); }
+  .kpi-tile.green::after  { background: var(--green); box-shadow: 0 0 12px rgba(34,197,94,0.4); }
+  .kpi-tile.amber::after  { background: var(--amber); box-shadow: 0 0 12px rgba(234,179,8,0.4); }
+  .kpi-tile.red::after    { background: var(--red); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+  .kpi-tile.muted::after  { background: var(--text-3); }
 
   .kpi-tile .kpi-label {
-    font-size: 11px; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--text-2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-2);
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
+  .kpi-tile .kpi-info {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s;
+    margin-left: auto;
+    user-select: none;
+  }
+  .kpi-tile .kpi-info:hover {
+    background: var(--indigo-bright);
+    color: #fff;
+  }
+  .kpi-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: rgba(99,102,241,0.12);
+    color: var(--lavender);
+    font-size: 13px;
+    line-height: 1;
+    margin-right: 2px;
+    flex-shrink: 0;
+  }
+  .kpi-tile.green .kpi-icon  { background: rgba(34,197,94,0.16); color: var(--green-soft); }
+  .kpi-tile.amber .kpi-icon  { background: rgba(234,179,8,0.16); color: var(--amber-soft); }
+  .kpi-tile.red .kpi-icon    { background: rgba(239,68,68,0.16); color: var(--red-soft); }
+  .kpi-tile.muted .kpi-icon  { background: var(--bg-3); color: var(--text-3); }
   .kpi-tile .kpi-value {
-    font-size: 24px; font-weight: 700;
-    color: var(--text-0); margin-top: 6px;
-    line-height: 1.2;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-0);
+    margin-top: 4px;
+    line-height: 1.15;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
   }
   .kpi-tile .kpi-sub {
-    font-size: 12px; color: var(--text-2);
+    font-size: 11.5px;
+    color: var(--text-2);
     margin-top: 4px;
     min-height: 1.4em;
+    line-height: 1.4;
   }
   .kpi-delta { font-weight: 600; }
-  .delta-up   { color: #6EE7B7; }
-  .delta-down { color: #FCA5A5; }
-  .delta-flat { color: #FCD34D; }
+  .delta-up   { color: var(--green-soft); }
+  .delta-down { color: var(--red-soft); }
+  .delta-flat { color: var(--amber-soft); }
+
+  /* Sparkline mini-chart inside KPI tile */
+  .kpi-spark {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    width: 80px;
+    height: 24px;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+  .kpi-spark-large { width: 110px; height: 32px; bottom: 16px; right: 16px; }
+
+  /* Tooltip for KPI info */
+  .kpi-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: var(--bg-3);
+    color: var(--text-0);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    white-space: normal;
+    width: 240px;
+    text-align: left;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 1px solid var(--line-soft);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+    z-index: 100;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .kpi-info:hover + .kpi-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-12px);
+  }
+  .kpi-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%; left: 50%;
+    margin-left: -6px;
+    border: 6px solid transparent;
+    border-top-color: var(--bg-3);
+  }
+  .kpi-tooltip code {
+    background: var(--bg-1);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--lavender);
+  }
 
   /* Brand matrix */
   table.brand-matrix {
@@ -740,7 +1325,7 @@
     <div class="brand-block">
       <span class="brand-mark">Cavitak · Portfolio P&L</span>
       <h1 class="title">Sales Review Tool</h1>
-      <span class="tagline">BrightSign · tvONE · Green Hippo &nbsp;·&nbsp; FY-aware analytics &nbsp;·&nbsp; <span class="mono">v0.6 — Phase 3.6 (YoY + Repeat)</span></span>
+      <span class="tagline">BrightSign · tvONE · Green Hippo &nbsp;·&nbsp; FY-aware analytics &nbsp;·&nbsp; <span class="mono">v1.0 — Executive narrative + clarity redesign</span></span>
     </div>
     <div class="meta-stat-row" id="hdrStats">
       <span class="meta-stat"><span>Records:</span> <strong id="metaRecCount">0</strong></span>
@@ -944,21 +1529,47 @@
           Exclude demo &amp; adjustments
         </label>
 
-        <button class="btn" id="btnRefreshDash" style="margin-left:auto;padding:6px 12px;font-size:12px">↻ Refresh</button>
+        <button class="btn" id="btnExcelDash" style="margin-left:auto;padding:6px 12px;font-size:12px;background:linear-gradient(135deg,#10B981,#059669);border:none;color:#fff">📊 Download Excel</button>
+        <button class="btn" id="btnRefreshDash" style="padding:6px 12px;font-size:12px">↻ Refresh</button>
       </div>
     </div>
 
-    <!-- Row 1 — Headline KPIs -->
-    <div class="kpi-row-label">Headline</div>
-    <div class="stat-grid kpi-row" id="dKpisRow1" style="margin-bottom:12px"></div>
+    <!-- TIER 1: Executive Summary narrative -->
+    <div id="dExecSummary"></div>
 
-    <!-- Row 2 — Brand health KPIs -->
-    <div class="kpi-row-label">Brand health</div>
-    <div class="stat-grid kpi-row" id="dKpisRow2" style="margin-bottom:12px"></div>
+    <!-- TIER 2: Hero tile — main headline number -->
+    <div id="dHero"></div>
 
-    <!-- Row 3 — Composition & quality KPIs -->
-    <div class="kpi-row-label">Composition &amp; quality</div>
-    <div class="stat-grid kpi-row" id="dKpisRow3" style="margin-bottom:24px"></div>
+    <!-- TIER 2.5: Quick Numbers — dense KPI panel for number-loving review -->
+    <div class="card quick-numbers" style="padding:18px 22px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+        <div>
+          <div class="quick-numbers-title">Quick Numbers</div>
+          <div class="quick-numbers-sub">All key metrics at a glance · auto-updates with filters</div>
+        </div>
+        <div class="quick-numbers-stamp" id="qnStamp"></div>
+      </div>
+      <div id="dQuickNumbers"></div>
+    </div>
+
+    <!-- TIER 3: Detailed cards (expandable for deeper review) -->
+    <details class="kpi-collapse" open>
+      <summary class="kpi-section-header" style="cursor:pointer">
+        <span class="kpi-section-num">📊</span>
+        <div>
+          <div class="kpi-section-title">Detailed Tile View <span class="kpi-collapse-hint">▴ tap to collapse</span></div>
+          <div class="kpi-section-sub">Same metrics as Quick Numbers above, with context and sparklines for each.</div>
+        </div>
+      </summary>
+      <div style="margin-top:14px">
+        <div class="kpi-row-label">Performance</div>
+        <div class="stat-grid kpi-row" id="dKpisRow1" style="margin-bottom:18px"></div>
+        <div class="kpi-row-label">Customer story</div>
+        <div class="stat-grid kpi-row" id="dKpisRow3" style="margin-bottom:18px"></div>
+        <div class="kpi-row-label">Brand health</div>
+        <div class="stat-grid kpi-row" id="dKpisRow2" style="margin-bottom:8px"></div>
+      </div>
+    </details>
 
     <!-- Brand performance matrix -->
     <div class="card">
@@ -985,6 +1596,21 @@
         <h2>Top 10 Products</h2>
         <div class="sub">By revenue. Brand-tagged.</div>
         <div id="dTopProducts"></div>
+      </div>
+    </div>
+
+    <!-- Sales Rep Leaderboard + Product Mix Donut -->
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:20px;margin-top:20px">
+      <div class="card" style="margin-bottom:0">
+        <h2>Sales Rep Leaderboard</h2>
+        <div class="sub">Revenue contribution by individual sales representative. Hover any row to see invoice count and average deal size.</div>
+        <div id="dRepLeaderboard"></div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <h2>Product Mix</h2>
+        <div class="sub">Revenue split by brand in the selected scope.</div>
+        <div style="height:240px;margin-top:12px;position:relative"><canvas id="dMixDonut"></canvas></div>
+        <div id="dMixLegend" style="margin-top:14px"></div>
       </div>
     </div>
 
@@ -1048,7 +1674,7 @@
 
   <footer class="bottom">
     <div>Cavitak Sales Review · Built for Dipenkumar Gajjar · Personal Portfolio P&amp;L Tool</div>
-    <div class="mono">v0.6 · Phase 3.6 (YoY + Repeat-customer)</div>
+    <div class="mono">v1.0 · Executive narrative + clarity redesign</div>
   </footer>
 </div>
 
@@ -1154,8 +1780,28 @@ db.version(3).stores({
     if (h.region === undefined) h.region = '';
   });
 });
+// v4: recompute fingerprints with FNV-1a (was SHA-256). Allows re-uploading
+// the same file post-upgrade without producing duplicates.
+db.version(4).stores({
+  sales: '++id, &fingerprint, postingDate, fiscalYear, fiscalQuarter, brand, productLine, customerClean, stateCode, salesEmp, isDemo, isAdjustment, sourceFile, uploadedAt, schemaVersion',
+  unmapped: '++id, &itemNo, itemDesc, firstSeenAt',
+  holders: '++id, fullName, role, isActive, reportsTo, region, createdAt',
+  targets: '++id, fiscalYear, scope, scopeKey, holderId, status, updatedAt, [fiscalYear+scope+scopeKey]'
+}).upgrade(tx => {
+  return tx.table('sales').toCollection().modify(r => {
+    // Reconstruct the fingerprint payload from stored fields and re-hash
+    const fpPayload = [
+      r.postingDate || '',
+      String(r.docNumber || ''),
+      String(r.itemNo || ''),
+      String(r.quantity ?? ''),
+      String(r.netValueINR ?? '')
+    ].join('|');
+    r.fingerprint = fingerprintHash(fpPayload);
+  });
+});
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const BRANDS = ['BrightSign', 'tvONE', 'Green Hippo'];
 const ROLE_PRESETS = ['Sales Person', 'BU Head', 'RSM', 'Product Manager'];
 const DEFAULT_TARGET_FY = 'FY26-27';
@@ -1185,11 +1831,34 @@ const STATE_MAP = {
 };
 
 // ============= 3. FINGERPRINT (SHA-256 → hex) =============
+// Fingerprint hash — used for row deduplication, NOT security.
+// FNV-1a 64-bit-style implementation in pure JS so it works in any context
+// (file://, content://, http://, https://). The Web Crypto API requires
+// a secure context (HTTPS or localhost), which fails when the HTML is
+// opened directly from a phone's Downloads folder.
+//
+// Output format: 16-hex-character string (deterministic, ~64 bits of entropy).
+// Collision probability for our row count (~1000s) is negligible.
+function fingerprintHash(str) {
+  // FNV-1a 64-bit using two 32-bit halves for performance
+  let h1 = 0x811c9dc5;       // FNV offset basis (low 32)
+  let h2 = 0xcbf29ce4;       // FNV offset basis (high 32)
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 ^= c;
+    h2 ^= (c >>> 8);
+    // FNV prime multiply approximation, mixing both halves
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h2 = Math.imul(h2, 0x01000193) >>> 0;
+    h2 = (h2 ^ (h1 >>> 13)) >>> 0;
+  }
+  return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0');
+}
+
+// Async wrapper kept for backward compatibility with the import pipeline
+// (which uses `await sha256Hex(...)`). Internally it's now synchronous.
 async function sha256Hex(str) {
-  const buf = new TextEncoder().encode(str);
-  const hash = await crypto.subtle.digest('SHA-256', buf);
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
+  return fingerprintHash(str);
 }
 
 // ============= 4. DERIVATIONS =============
@@ -2698,11 +3367,74 @@ function _runRateForecast(actual, monthsElapsed) {
 
 // ----- KPI tile rendering -----
 
-function _kpiTile(label, value, sub, statusClass = '') {
+// Build a sparkline SVG from an array of numeric values.
+// Returns '' if data is too thin to be meaningful.
+function _sparklineSVG(values, opts = {}) {
+  if (!values || values.length < 2) return '';
+  const validVals = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+  if (validVals.length < 2) return '';
+  const w = opts.width || 80;
+  const h = opts.height || 24;
+  const min = Math.min(...validVals);
+  const max = Math.max(...validVals);
+  const range = max - min || 1;
+  const points = values.map((v, i) => {
+    if (v === null || v === undefined || isNaN(v)) return null;
+    const x = (i / (values.length - 1)) * (w - 2) + 1;
+    const y = h - 1 - ((v - min) / range) * (h - 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  // Build path skipping nulls
+  let path = '';
+  let lastValid = false;
+  for (let i = 0; i < points.length; i++) {
+    if (points[i] === null) { lastValid = false; continue; }
+    path += (lastValid ? ' L ' : ' M ') + points[i];
+    lastValid = true;
+  }
+  // Trend color: last vs first (non-null)
+  const firstV = validVals[0];
+  const lastV = validVals[validVals.length - 1];
+  const color = lastV >= firstV ? 'var(--green-soft)' : 'var(--red-soft)';
+  // Filled area below line
+  const lastIdx = points.findLastIndex ? points.findLastIndex(p => p !== null) : (() => {
+    for (let j = points.length - 1; j >= 0; j--) if (points[j] !== null) return j;
+    return -1;
+  })();
+  const firstIdx = points.findIndex(p => p !== null);
+  let areaPath = '';
+  if (firstIdx >= 0 && lastIdx >= 0) {
+    const xFirst = (firstIdx / (values.length - 1)) * (w - 2) + 1;
+    const xLast = (lastIdx / (values.length - 1)) * (w - 2) + 1;
+    areaPath = `M ${xFirst.toFixed(1)},${h-1} ${path.substring(2)} L ${xLast.toFixed(1)},${h-1} Z`;
+  }
+  const cls = opts.large ? 'kpi-spark kpi-spark-large' : 'kpi-spark';
+  return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="sparkfill-${Math.random().toString(36).slice(2,8)}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="${color}" fill-opacity="0.12" stroke="none"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+// _kpiTile(label, value, sub, statusClass, tooltipText, sparklineValues)
+function _kpiTile(label, value, sub, statusClass = '', tooltip = '', sparkValues = null, icon = '') {
+  const tooltipHTML = tooltip
+    ? `<span class="kpi-info" aria-label="info">i</span><span class="kpi-tooltip">${tooltip}</span>`
+    : '';
+  const sparkHTML = sparkValues ? _sparklineSVG(sparkValues) : '';
+  const iconHTML = icon ? `<span class="kpi-icon">${icon}</span>` : '';
   return `<div class="kpi-tile ${statusClass}">
-    <div class="kpi-label">${label}</div>
-    <div class="kpi-value">${value}</div>
+    <div>
+      <div class="kpi-label">${iconHTML}${label}${tooltipHTML}</div>
+      <div class="kpi-value">${value}</div>
+    </div>
     <div class="kpi-sub">${sub}</div>
+    ${sparkHTML}
   </div>`;
 }
 
@@ -2809,6 +3541,468 @@ function _renderBrandMatrix(opts) {
 
 // ----- KPI strip (v0.6: 3 rows, with YoY + repeat-customer additions) -----
 
+// ----- HERO tile (v0.8) -----
+// One large prominent tile at top of dashboard showing the headline number
+// with a wide sparkline + key context metrics.
+// ===== v1.0: Executive Summary + Quick Numbers =====
+
+// Build the auto-generated executive narrative.
+// Plain English. Comparative framing. Number-rich.
+function _renderExecSummary(opts) {
+  const wrap = document.getElementById('dExecSummary');
+  if (!wrap) return;
+
+  const {
+    records, allSalesInDB, scopeFrom, scopeTo, fy, brand, mode,
+    monthsElapsed, allTargets,
+    recordsLastMonth, recordsPriorMonth,
+    recordsLast3mo, recordsPrior3mo,
+    recordsLYFullYear
+  } = opts;
+
+  const ytdActual = _sumBy(records);
+  const portTgt = (allTargets || []).find(t => t.scope === 'portfolio' && t.scopeKey === 'All');
+  const portAnnual = portTgt?.annualTarget ?? null;
+  const runRate = _runRateForecast(ytdActual, monthsElapsed);
+  const lyFullRev = _sumBy(recordsLYFullYear || []);
+
+  // Brand mix
+  const brandMix = {};
+  for (const b of BRANDS) brandMix[b] = 0;
+  for (const r of records) {
+    if (BRANDS.includes(r.brand)) brandMix[r.brand] += (r.netValueINR || 0);
+  }
+  const totalForMix = ytdActual || 1;
+  const sortedBrands = Object.entries(brandMix).sort((a,b) => b[1] - a[1]);
+
+  // Customer + invoice stats
+  const activeCusts = _uniqueCount(records, r => r.customerClean);
+  const invCount = new Set(records.map(r => r.docNumber)).size;
+  const avgDeal = invCount > 0 ? ytdActual / invCount : 0;
+
+  // Top customer
+  const byCust = _sumBy(records, r => r.customerClean);
+  const topCust = Object.entries(byCust).sort((a,b) => b[1] - a[1])[0];
+
+  // Repeat customer math
+  const invByCust = {};
+  for (const r of records) {
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!invByCust[c]) invByCust[c] = new Set();
+    invByCust[c].add(r.docNumber);
+  }
+  const repeatCusts = Object.values(invByCust).filter(s => s.size >= 2).length;
+  const repeatPct = activeCusts > 0 ? (repeatCusts / activeCusts) * 100 : 0;
+
+  // Top-5 concentration
+  const sortedCustVals = Object.values(byCust).sort((a,b) => b - a);
+  const top5Pct = ytdActual > 0
+    ? (sortedCustVals.slice(0, 5).reduce((s,v) => s + v, 0) / ytdActual) * 100 : 0;
+
+  // MoM signal
+  const lastM = _sumBy(recordsLastMonth || []);
+  const priorM = _sumBy(recordsPriorMonth || []);
+  const momPct = priorM > 0 ? ((lastM - priorM) / priorM) * 100 : null;
+
+  // Period over period
+  const last3 = _sumBy(recordsLast3mo || []);
+  const prior3 = _sumBy(recordsPrior3mo || []);
+  const popPct = prior3 > 0 ? ((last3 - prior3) / prior3) * 100 : null;
+
+  // Months of distribution operation (BU launched Apr 2025 = Apr 1 2025 onwards)
+  const launchDate = new Date('2025-04-01');
+  const asOfDate = new Date(scopeTo);
+  const monthsSinceLaunch = Math.max(0, (asOfDate - launchDate) / (1000 * 60 * 60 * 24 * 30.44));
+
+  // Build the narrative — comparative framing + number-rich
+  const brandLabel = brand || 'AV portfolio';
+  const periodPhrase = mode === 'range'
+    ? `from ${scopeFrom} to ${scopeTo}`
+    : monthsElapsed >= 12
+      ? `in ${fy} (full year complete)`
+      : `${fy} year-to-date (${monthsElapsed.toFixed(1)} of 12 months)`;
+
+  // Helper to wrap numbers
+  const N = (s) => `<strong class="num-neutral">${s}</strong>`;
+  const G = (s) => `<strong class="num-good">${s}</strong>`;
+  const R = (s) => `<strong class="num-bad">${s}</strong>`;
+
+  // Sentence 1 — Headline + comparative framing
+  let s1 = '';
+  if (monthsSinceLaunch < 13) {
+    // First-year framing
+    s1 = `The <strong>${escapeHTML(brandLabel)}</strong> business — Cavitak's newest distribution portfolio, launched April 2025 — has invoiced ${N(fmtINR(ytdActual))} ${periodPhrase} across ${N(invCount + ' invoices')} to ${N(activeCusts + ' customers')}.`;
+  } else {
+    s1 = `The <strong>${escapeHTML(brandLabel)}</strong> business has invoiced ${N(fmtINR(ytdActual))} ${periodPhrase} across ${N(invCount + ' invoices')} to ${N(activeCusts + ' customers')}.`;
+  }
+
+  // Sentence 2 — Trajectory
+  let s2 = '';
+  if (runRate !== null && lyFullRev > 0) {
+    const rrVsLy = (runRate / lyFullRev) * 100;
+    const trajectoryWord = rrVsLy >= 110 ? 'on pace to <em>exceed</em>' :
+                          rrVsLy >= 95 ? 'on track to <em>match</em>' :
+                          rrVsLy >= 80 ? 'tracking <em>slightly behind</em>' : 'tracking <em>materially below</em>';
+    s2 = `At current pace, the run-rate forecast is ${N(fmtINR(runRate))} — ${trajectoryWord} last year's full-year delivery of ${N(fmtINR(lyFullRev))} (${N(rrVsLy.toFixed(0) + '%')}).`;
+  } else if (runRate !== null && portAnnual !== null) {
+    const rrVsTgt = (runRate / portAnnual) * 100;
+    const cls = rrVsTgt >= 100 ? G : rrVsTgt >= 80 ? N : R;
+    s2 = `At current pace, run-rate forecast is ${N(fmtINR(runRate))} — projecting ${cls(rrVsTgt.toFixed(0) + '%')} of the FY target ${N(fmtINR(portAnnual))}.`;
+  } else if (runRate !== null) {
+    s2 = `At current pace, the run-rate annualizes to ${N(fmtINR(runRate))} — set a portfolio target in the Targets tab to anchor this against plan.`;
+  }
+
+  // Sentence 3 — Brand mix
+  let s3 = '';
+  if (!brand && sortedBrands[0][1] > 0) {
+    const [b1, v1] = sortedBrands[0];
+    const [b2, v2] = sortedBrands[1] || ['', 0];
+    const [b3, v3] = sortedBrands[2] || ['', 0];
+    s3 = `Brand mix is led by <strong>${escapeHTML(b1)}</strong> at ${N((v1/totalForMix*100).toFixed(0) + '%')} (${fmtINR(v1)})` +
+         (v2 > 0 ? `, <strong>${escapeHTML(b2)}</strong> at ${N((v2/totalForMix*100).toFixed(0) + '%')}` : '') +
+         (v3 > 0 ? `, and <strong>${escapeHTML(b3)}</strong> at ${N((v3/totalForMix*100).toFixed(0) + '%')}.` : '.');
+  }
+
+  // Sentence 4 — Customer story
+  let s4 = '';
+  if (topCust && repeatCusts > 0) {
+    s4 = `<strong>${escapeHTML(topCust[0])}</strong> is the largest customer at ${N(fmtINR(topCust[1]))}; the top 5 customers concentrate ${N(top5Pct.toFixed(0) + '%')} of revenue, and repeat buyers account for ${N(repeatPct.toFixed(0) + '%')} of the ${N(activeCusts)}-customer base.`;
+  } else if (topCust) {
+    s4 = `<strong>${escapeHTML(topCust[0])}</strong> leads at ${N(fmtINR(topCust[1]))}; the top 5 customers represent ${N(top5Pct.toFixed(0) + '%')} of revenue.`;
+  }
+
+  // Sentence 5 — Momentum signal
+  let s5 = '';
+  if (momPct !== null && Math.abs(momPct) > 5) {
+    const tag = momPct > 0 ? G : R;
+    const dir = momPct > 0 ? 'up' : 'down';
+    s5 = `Momentum: last full month is ${tag((momPct >= 0 ? '+' : '') + momPct.toFixed(0) + '%')} ${dir} versus the prior month (${fmtINR(lastM)} vs ${fmtINR(priorM)})`;
+    if (popPct !== null) {
+      const tag2 = popPct > 0 ? G : R;
+      s5 += ` and trailing 3 months are ${tag2((popPct >= 0 ? '+' : '') + popPct.toFixed(0) + '%')} versus the prior 3.`;
+    } else {
+      s5 += '.';
+    }
+  } else if (popPct !== null && Math.abs(popPct) > 5) {
+    const tag = popPct > 0 ? G : R;
+    s5 = `Trailing 3 months are ${tag((popPct >= 0 ? '+' : '') + popPct.toFixed(0) + '%')} vs the prior 3 months.`;
+  }
+
+  const sentences = [s1, s2, s3, s4, s5].filter(Boolean);
+  wrap.innerHTML = `
+    <div class="exec-summary">
+      <div class="exec-summary-label">Executive Summary</div>
+      <div class="exec-summary-text">${sentences.join(' ')}</div>
+    </div>
+  `;
+}
+
+// Quick Numbers — Bloomberg-style dense KPI panel.
+// Shows ~16 metrics in 4×4 grid (2×8 on phone).
+function _renderQuickNumbers(opts) {
+  const wrap = document.getElementById('dQuickNumbers');
+  const stamp = document.getElementById('qnStamp');
+  if (!wrap) return;
+
+  const {
+    records, allSalesInDB, scopeFrom, scopeTo, fy, brand, mode,
+    monthsElapsed, allTargets,
+    recordsLastMonth, recordsPriorMonth,
+    recordsLast3mo, recordsPrior3mo,
+    recordsYoYSame, recordsLYFullYear
+  } = opts;
+
+  // Compute everything
+  const ytdActual = _sumBy(records);
+  const portTgt = (allTargets || []).find(t => t.scope === 'portfolio' && t.scopeKey === 'All');
+  const portAnnual = portTgt?.annualTarget ?? null;
+  const portPace = portAnnual !== null ? Pace.linearPace(portAnnual, fy, new Date(scopeTo)) : null;
+  const portAchievement = (portPace !== null && portPace > 0) ? (ytdActual / portPace) * 100 : null;
+  const runRate = _runRateForecast(ytdActual, monthsElapsed);
+
+  const lastM = _sumBy(recordsLastMonth || []);
+  const priorM = _sumBy(recordsPriorMonth || []);
+  const momPct = priorM > 0 ? ((lastM - priorM) / priorM) * 100 : null;
+  const last3 = _sumBy(recordsLast3mo || []);
+  const prior3 = _sumBy(recordsPrior3mo || []);
+  const popPct = prior3 > 0 ? ((last3 - prior3) / prior3) * 100 : null;
+
+  const yoySame = _sumBy(recordsYoYSame || []);
+  const yoySamePct = yoySame > 0 ? ((ytdActual - yoySame) / yoySame) * 100 : null;
+  const lyFullRev = _sumBy(recordsLYFullYear || []);
+  const lyMatchedPct = lyFullRev > 0 ? (ytdActual / lyFullRev) * 100 : null;
+
+  const activeCusts = _uniqueCount(records, r => r.customerClean);
+  const invCount = new Set(records.map(r => r.docNumber)).size;
+  const totalQty = records.reduce((s, r) => s + (r.quantity || 0), 0);
+  const avgDeal = invCount > 0 ? ytdActual / invCount : 0;
+  const avgPerCust = activeCusts > 0 ? ytdActual / activeCusts : 0;
+
+  const byCust = _sumBy(records, r => r.customerClean);
+  const sortedCustVals = Object.values(byCust).sort((a,b) => b - a);
+  const top5Pct = ytdActual > 0
+    ? (sortedCustVals.slice(0, 5).reduce((s,v) => s + v, 0) / ytdActual) * 100 : 0;
+  const top1Pct = ytdActual > 0 && sortedCustVals[0]
+    ? (sortedCustVals[0] / ytdActual) * 100 : 0;
+
+  const invByCust = {};
+  for (const r of records) {
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!invByCust[c]) invByCust[c] = new Set();
+    invByCust[c].add(r.docNumber);
+  }
+  const repeatBuckets = { 1: 0, 2: 0, 3: 0, 4: 0 }; // 4 = 4+
+  for (const s of Object.values(invByCust)) {
+    const n = s.size;
+    repeatBuckets[Math.min(n, 4)]++;
+  }
+  const repeatCusts = activeCusts - repeatBuckets[1];
+  const repeatPct = activeCusts > 0 ? (repeatCusts / activeCusts) * 100 : 0;
+
+  // Brand-specific revenue
+  const brandRev = {};
+  for (const b of BRANDS) brandRev[b] = 0;
+  for (const r of records) {
+    if (BRANDS.includes(r.brand)) brandRev[r.brand] += (r.netValueINR || 0);
+  }
+  const brandPct = (b) => ytdActual > 0 ? (brandRev[b] / ytdActual) * 100 : 0;
+
+  // Sales rep stats
+  const repRev = {};
+  for (const r of records) {
+    const k = (r.salesEmp || '(unassigned)').trim() || '(unassigned)';
+    repRev[k] = (repRev[k] || 0) + (r.netValueINR || 0);
+  }
+  const repCount = Object.keys(repRev).length;
+  const sortedReps = Object.entries(repRev).sort((a,b) => b[1] - a[1]);
+  const topRepShare = ytdActual > 0 && sortedReps[0]
+    ? (sortedReps[0][1] / ytdActual) * 100 : 0;
+
+  // Stamp
+  if (stamp) {
+    const now = new Date().toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    stamp.textContent = `as of ${now}`;
+  }
+
+  // Helper to render a cell
+  function cell(label, value, meta = '', cls = '') {
+    return `<div class="qn-cell">
+      <div class="qn-label">${label}</div>
+      <div class="qn-value ${cls}">${value}</div>
+      ${meta ? `<div class="qn-meta">${meta}</div>` : ''}
+    </div>`;
+  }
+  function pct(p, thresholds = { good: 5, bad: -5 }) {
+    if (p === null || p === undefined || isNaN(p)) return { text: '—', cls: '' };
+    const sign = p >= 0 ? '+' : '';
+    const text = sign + p.toFixed(1) + '%';
+    const cls = p > thresholds.good ? 'qn-good' : p < thresholds.bad ? 'qn-bad' : 'qn-warn';
+    return { text, cls };
+  }
+
+  let html = '<div class="qn-grid">';
+
+  // === SECTION: REVENUE & PACE ===
+  html += '<div class="qn-cell qn-section-break">Revenue · Pace · Forecast</div>';
+  html += cell('Revenue YTD', fmtINR(ytdActual), `${monthsElapsed.toFixed(1)} of 12 months`);
+  html += cell('Run-Rate Forecast', runRate !== null ? fmtINR(runRate) : '—',
+    portAnnual !== null && runRate !== null ? `${(runRate/portAnnual*100).toFixed(0)}% of FY target` : 'annualized at current pace');
+  html += cell('FY Target', portAnnual !== null ? fmtINR(portAnnual) : '— TBD',
+    portAnnual !== null && ytdActual > 0 ? `${fmtINR(portAnnual - ytdActual)} to go` : 'set in Targets tab');
+  {
+    const a = pct(portAchievement, { good: 95, bad: 80 });
+    html += cell('Achievement vs Pace', portAchievement !== null ? portAchievement.toFixed(0) + '%' : '—',
+      portPace !== null ? `pace ${fmtINR(portPace)}` : '', a.cls.replace('qn-warn','qn-warn'));
+  }
+
+  // === SECTION: GROWTH SIGNALS ===
+  html += '<div class="qn-cell qn-section-break">Growth Signals</div>';
+  {
+    const m = pct(momPct);
+    html += cell('MoM (last full month)', m.text,
+      momPct !== null ? `${fmtINR(lastM)} vs ${fmtINR(priorM)}` : 'insufficient data', m.cls);
+  }
+  {
+    const p = pct(popPct);
+    html += cell('PoP (3mo vs prior 3mo)', p.text,
+      popPct !== null ? `${fmtINR(last3)} vs ${fmtINR(prior3)}` : '—', p.cls);
+  }
+  {
+    if (yoySame > 0) {
+      const y = pct(yoySamePct);
+      html += cell('YoY same-period', y.text, `LY same window ${fmtINR(yoySame)}`, y.cls);
+    } else if (ytdActual > 0) {
+      html += cell('YoY same-period', '★ baseline', 'LY ₹0 — newest BU', '');
+    } else {
+      html += cell('YoY same-period', '—', 'no data', '');
+    }
+  }
+  if (lyFullRev > 0) {
+    const expectedPct = (monthsElapsed / 12) * 100;
+    const cls = lyMatchedPct >= expectedPct * 1.05 ? 'qn-good' :
+                lyMatchedPct >= expectedPct * 0.85 ? 'qn-warn' : 'qn-bad';
+    html += cell('YoY full-year matched', lyMatchedPct.toFixed(1) + '%',
+      `LY total ${fmtINR(lyFullRev)} · expect ${expectedPct.toFixed(0)}%`, cls);
+  } else {
+    html += cell('YoY full-year matched', '—', 'no LY data', '');
+  }
+
+  // === SECTION: CUSTOMERS ===
+  html += '<div class="qn-cell qn-section-break">Customers · Concentration · Loyalty</div>';
+  html += cell('Active Customers', activeCusts.toString(), `${invCount} invoices`);
+  html += cell('Avg Deal Size', fmtINR(avgDeal), `revenue per invoice`);
+  html += cell('Avg Revenue / Customer', fmtINR(avgPerCust), `${activeCusts} customers`);
+  {
+    const cls = top5Pct >= 80 ? 'qn-bad' : top5Pct >= 60 ? 'qn-warn' : 'qn-good';
+    html += cell('Top-5 Concentration', top5Pct.toFixed(0) + '%',
+      sortedCustVals[0] ? `top 1 alone: ${top1Pct.toFixed(0)}%` : '', cls);
+  }
+  {
+    const cls = repeatPct >= 40 ? 'qn-good' : repeatPct >= 20 ? 'qn-warn' : 'qn-bad';
+    html += cell('Repeat Customer Share', repeatPct.toFixed(0) + '%',
+      `${repeatCusts} of ${activeCusts} buy 2+ times`, cls);
+  }
+  html += cell('4×+ Loyal Customers', repeatBuckets[4].toString(),
+    activeCusts > 0 ? `${(repeatBuckets[4]/activeCusts*100).toFixed(0)}% of base` : '');
+  html += cell('One-time Buyers', repeatBuckets[1].toString(),
+    activeCusts > 0 ? `${(repeatBuckets[1]/activeCusts*100).toFixed(0)}% of base` : '');
+
+  // === SECTION: BRAND MIX ===
+  html += '<div class="qn-cell qn-section-break">Brand Mix · Operations</div>';
+  for (const b of BRANDS) {
+    html += cell(b + ' share', brandPct(b).toFixed(1) + '%',
+      fmtINR(brandRev[b]), '');
+  }
+  html += cell('Total Units Sold', totalQty.toLocaleString('en-IN'),
+    invCount > 0 ? `${(totalQty/invCount).toFixed(1)} units / invoice` : '');
+  html += cell('Sales Reps Active', repCount.toString(),
+    sortedReps[0] ? `top rep: ${topRepShare.toFixed(0)}% share` : '');
+
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+// Smooth count-up animation for a numeric tile value.
+// Works on the data-numanim attribute holding the target value.
+// Animates from 0 → target over ~700ms with ease-out.
+function _renderHero(opts) {
+  const wrap = document.getElementById('dHero');
+  if (!wrap) return;
+
+  const { records, allSalesInDB, scopeFrom, scopeTo, fy, mode, brand,
+          monthsElapsed, allTargets, recordsLastMonth, recordsPriorMonth,
+          recordsLast3mo, recordsPrior3mo } = opts;
+
+  const ytdActual = _sumBy(records);
+  const portTgt = (allTargets || []).find(t => t.scope === 'portfolio' && t.scopeKey === 'All');
+  const portAnnual = portTgt?.annualTarget ?? null;
+  const runRate = _runRateForecast(ytdActual, monthsElapsed);
+
+  // 12-month trailing sparkline for hero
+  const trailingMonths = _getTrailingMonths(scopeTo, 12);
+  const monthlyValues = trailingMonths.map(mw => {
+    const recs = _filterRecords(allSalesInDB || [], { brand, excludeDemo: true, from: mw.from, to: mw.to });
+    return _sumBy(recs);
+  });
+
+  // Brand label
+  const brandLabel = brand || 'Portfolio';
+
+  // Compute MoM
+  const lastM = _sumBy(recordsLastMonth || []);
+  const priorM = _sumBy(recordsPriorMonth || []);
+  const momPct = priorM > 0 ? ((lastM - priorM) / priorM) * 100 : null;
+  const last3 = _sumBy(recordsLast3mo || []);
+  const prior3 = _sumBy(recordsPrior3mo || []);
+  const popPct = prior3 > 0 ? ((last3 - prior3) / prior3) * 100 : null;
+
+  // Time context phrase
+  const monthsPhrase = monthsElapsed >= 12
+    ? 'FY complete'
+    : `${monthsElapsed.toFixed(1)} of 12 months elapsed`;
+
+  // Status indicator
+  const statusText = (() => {
+    if (portAnnual !== null && runRate !== null) {
+      const pct = (runRate / portAnnual) * 100;
+      if (pct >= 100) return { text: 'On track to exceed FY target', cls: 'delta-up' };
+      if (pct >= 90) return { text: 'On pace for FY target', cls: 'delta-up' };
+      if (pct >= 75) return { text: 'Tracking slightly behind', cls: 'delta-flat' };
+      return { text: 'Below FY pace', cls: 'delta-down' };
+    }
+    if (momPct !== null && momPct > 5) return { text: 'Growing month-over-month', cls: 'delta-up' };
+    if (momPct !== null && momPct < -5) return { text: 'Declining month-over-month', cls: 'delta-down' };
+    return { text: 'Live', cls: 'delta-flat' };
+  })();
+
+  // Build sparkline at hero scale
+  const sparkLargeHTML = monthlyValues.some(v => v > 0)
+    ? _sparklineSVG(monthlyValues, { width: 220, height: 60, large: true })
+        .replace('class="kpi-spark kpi-spark-large"', 'class="kpi-hero-spark"')
+    : '';
+
+  // Compose meta strip
+  let metaParts = [];
+  metaParts.push(`<span><strong>${monthsPhrase}</strong></span>`);
+  if (runRate !== null) {
+    metaParts.push(`Run-rate <strong>${fmtINR(runRate)}</strong>`);
+  }
+  if (portAnnual !== null) {
+    metaParts.push(`FY target <strong>${fmtINR(portAnnual)}</strong>`);
+  }
+  if (momPct !== null) {
+    const cls = momPct > 5 ? 'delta-up' : momPct < -5 ? 'delta-down' : 'delta-flat';
+    const arrow = momPct > 5 ? '▲' : momPct < -5 ? '▼' : '◆';
+    metaParts.push(`<span class="${cls}">${arrow} <strong>${(momPct >= 0 ? '+' : '') + momPct.toFixed(1)}% MoM</strong></span>`);
+  }
+  if (popPct !== null) {
+    const cls = popPct > 5 ? 'delta-up' : popPct < -5 ? 'delta-down' : 'delta-flat';
+    const arrow = popPct > 5 ? '▲' : popPct < -5 ? '▼' : '◆';
+    metaParts.push(`<span class="${cls}">${arrow} <strong>${(popPct >= 0 ? '+' : '') + popPct.toFixed(1)}% PoP (3mo)</strong></span>`);
+  }
+
+  const labelText = mode === 'range'
+    ? `${brandLabel} · Selected Range`
+    : `${brandLabel} · ${fy} ${monthsElapsed >= 12 ? 'Complete' : 'YTD'}`;
+
+  wrap.innerHTML = `
+    <div class="kpi-hero">
+      <div class="kpi-hero-label"><span class="${statusText.cls}">${escapeHTML(statusText.text)}</span> <span style="color:var(--text-3);font-weight:400">·</span> <span style="color:var(--text-2);font-weight:500;letter-spacing:0.06em">${escapeHTML(labelText)}</span></div>
+      <div class="kpi-hero-value">
+        <span data-numanim="${ytdActual}">${fmtINR(ytdActual)}</span>
+      </div>
+      <div class="kpi-hero-meta">${metaParts.join('<span style="color:var(--text-3)">·</span>')}</div>
+      ${sparkLargeHTML}
+    </div>
+  `;
+
+  // Trigger count-up animation on the hero number
+  _animateNumber(wrap.querySelector('[data-numanim]'), ytdActual);
+}
+
+function _animateNumber(el, targetValue) {
+  if (!el || typeof targetValue !== 'number' || isNaN(targetValue)) return;
+  const duration = 700;
+  const startTime = performance.now();
+  const startValue = 0;
+  function step(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(1, elapsed / duration);
+    const eased = 1 - Math.pow(1 - t, 3);  // ease-out cubic
+    const current = startValue + (targetValue - startValue) * eased;
+    el.textContent = fmtINR(current);
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = fmtINR(targetValue);
+  }
+  requestAnimationFrame(step);
+}
+
+// ----- KPI strip (3 rows: Headline / Brand health / Composition) — RESTORED from v0.7 -----
 function _renderKPIs(opts) {
   const {
     records, recordsLast3mo, recordsPrior3mo, recordsLastMonth, recordsPriorMonth,
@@ -2816,6 +4010,30 @@ function _renderKPIs(opts) {
     allSalesInDB, scopeFrom, scopeTo, fy, asOf, brand, mode,
     targets, monthsElapsed, allTargets
   } = opts;
+
+  // ----- Sparkline data: last 12 months trailing from scopeTo -----
+  // Used in headline tiles to show trend at a glance
+  const trailingMonths = _getTrailingMonths(scopeTo, 12);
+  const monthlySparkRevenue = trailingMonths.map(mw => {
+    const recs = _filterRecords(allSalesInDB || [], { brand, excludeDemo: true, from: mw.from, to: mw.to });
+    return _sumBy(recs);
+  });
+  // Brand-specific sparklines
+  const brandSparks = {};
+  for (const b of BRANDS) {
+    brandSparks[b] = trailingMonths.map(mw => {
+      const recs = (allSalesInDB || []).filter(r =>
+        r.brand === b && !r.isDemo && !r.isAdjustment &&
+        r.postingDate >= mw.from && r.postingDate <= mw.to
+      );
+      return recs.reduce((s, r) => s + (r.netValueINR || 0), 0);
+    });
+  }
+  // Active customers per month
+  const monthlySparkCustomers = trailingMonths.map(mw => {
+    const recs = _filterRecords(allSalesInDB || [], { brand, excludeDemo: true, from: mw.from, to: mw.to });
+    return new Set(recs.map(r => r.customerClean).filter(Boolean)).size;
+  });
 
   // ----- Calculations shared across tiles -----
   const ytdActual = _sumBy(records);
@@ -2918,7 +4136,10 @@ function _renderKPIs(opts) {
     portAchievement !== null
       ? `${portAchievement.toFixed(0)}% of pace · ${monthsLabel}`
       : monthsLabel,
-    portAchievement !== null ? _statusFromPct(portAchievement) : 'muted'
+    portAchievement !== null ? _statusFromPct(portAchievement) : 'muted',
+    'Total revenue invoiced in the selected scope. The sub-line shows pacing against the FY target if one is set. Sparkline: trailing 12 months.',
+    monthlySparkRevenue,
+    '💰'
   );
   // T2: Achievement vs Pace
   if (portAnnual !== null) {
@@ -2926,14 +4147,20 @@ function _renderKPIs(opts) {
       'Achievement vs Pace',
       portAchievement !== null ? `${portAchievement.toFixed(0)}%` : '—',
       portAchievement !== null ? `Pace target ${fmtINR(portPace)} · actual ${fmtINR(ytdActual)}` : '',
-      _statusFromPct(portAchievement)
+      _statusFromPct(portAchievement),
+      'Actual revenue ÷ pro-rated FY target by months elapsed. <code>≥95%</code> = green, <code>80-95%</code> = amber, <code>&lt;80%</code> = red.',
+      null,
+      '🎯'
     );
   } else {
     html1 += _kpiTile(
       'Achievement vs Pace',
       '— TBD',
       'Set portfolio FY target in Targets tab',
-      'muted'
+      'muted',
+      'Requires a Portfolio FY target. Set one in the Targets tab to see how actual revenue compares to pacing.',
+      null,
+      '🎯'
     );
   }
   // T3: Run-rate forecast
@@ -2945,10 +4172,13 @@ function _renderKPIs(opts) {
       'Run-Rate FY Forecast',
       fmtINR(runRate),
       subText,
-      runRateVsTarget !== null ? _statusFromPct(runRateVsTarget) : ''
+      runRateVsTarget !== null ? _statusFromPct(runRateVsTarget) : '',
+      'Annualized projection: <code>(actual ÷ months elapsed) × 12</code>. Tells you where the FY will land if current pace holds.',
+      monthlySparkRevenue,
+      '🚀'
     );
   } else {
-    html1 += _kpiTile('Run-Rate FY Forecast', '—', 'Need data first', 'muted');
+    html1 += _kpiTile('Run-Rate FY Forecast', '—', 'Need data first', 'muted', '', null, '🚀');
   }
   // T4: MoM growth (cross-FY aware)
   if (momPct !== null) {
@@ -2956,7 +4186,10 @@ function _renderKPIs(opts) {
       'MoM Growth (last full month)',
       _deltaSpan(momPct),
       `Last month ${fmtINR(lastMonthRev)} · prior ${fmtINR(priorMonthRev)}`,
-      momPct > 5 ? 'green' : momPct < -5 ? 'red' : 'amber'
+      momPct > 5 ? 'green' : momPct < -5 ? 'red' : 'amber',
+      'Month-over-month growth, cross-FY aware. Compares last full month vs the month before it. <code>&gt;+5%</code> = green, <code>&lt;-5%</code> = red.',
+      null,
+      '📈'
     );
   } else if (lastMonthRev > 0) {
     html1 += _kpiTile(
@@ -2974,14 +4207,20 @@ function _renderKPIs(opts) {
       'YoY Same-Period',
       _deltaSpan(yoySamePct),
       `LY same window: ${fmtINR(yoySameRev)}`,
-      yoySamePct > 5 ? 'green' : yoySamePct < -5 ? 'red' : 'amber'
+      yoySamePct > 5 ? 'green' : yoySamePct < -5 ? 'red' : 'amber',
+      'CY revenue vs same calendar window in prior FY. Eg. Apr 1-26, 2026 vs Apr 1-26, 2025.',
+      null,
+      '📅'
     );
   } else if (ytdActual > 0 && yoySameRev === 0) {
     html1 += _kpiTile(
       'YoY Same-Period',
       `★ ${fmtINR(ytdActual)}`,
       'LY same window: ₹0 — baseline year for new launch',
-      'muted'
+      'muted',
+      'No comparable LY data because the brands launched in April 2025. Becomes meaningful once CY crosses into months that LY also has data for.',
+      null,
+      '📅'
     );
   } else {
     html1 += _kpiTile('YoY Same-Period', '—', 'No CY data yet', 'muted');
@@ -2996,7 +4235,10 @@ function _renderKPIs(opts) {
       'YoY Full-Year (matched)',
       `${lyMatchedPct.toFixed(0)}%`,
       sub,
-      status
+      status,
+      'CY YTD as a % of LY full-year total. Compared against time elapsed: if you\'re 7% into the FY, you\'d expect ~7% matched. <code>Ahead</code> if matched ≥ elapsed.',
+      null,
+      '🗓️'
     );
   } else {
     html1 += _kpiTile(
@@ -3029,7 +4271,9 @@ function _renderKPIs(opts) {
       head,
       valueText,
       subText,
-      s.ach !== null ? _statusFromPct(s.ach) : ''
+      s.ach !== null ? _statusFromPct(s.ach) : '',
+      `${b} revenue in the selected scope. Sparkline shows trailing 12 months for this brand specifically (ignores brand filter).`,
+      brandSparks[b]
     );
   }
   // Period over period — always show
@@ -3038,7 +4282,10 @@ function _renderKPIs(opts) {
       'Last 3mo vs Prior 3mo',
       _deltaSpan(popPct),
       `${fmtINR(last3mo)} vs ${fmtINR(prior3mo)}`,
-      popPct > 5 ? 'green' : popPct < -5 ? 'red' : 'amber'
+      popPct > 5 ? 'green' : popPct < -5 ? 'red' : 'amber',
+      'Period-over-period: trailing 90 days vs the 90 days before that. More stable signal than MoM since it averages out monthly spikes.',
+      null,
+      '📊'
     );
   } else if (last3mo > 0) {
     html2 += _kpiTile(
@@ -3065,13 +4312,19 @@ function _renderKPIs(opts) {
     'Active Customers',
     activeCustomers.toString(),
     `${invoiceCount} invoices · ${fmtINR(ytdActual)}`,
-    ''
+    '',
+    'Unique customers with at least one invoice in the selected scope. Sparkline shows active customers per month for the trailing 12 months.',
+    monthlySparkCustomers,
+    '👥'
   );
   html3 += _kpiTile(
     'Avg Deal Size',
     fmtINR(avgDealSize),
     `Across ${invoiceCount} invoice${invoiceCount === 1 ? '' : 's'}`,
-    ''
+    '',
+    'Total revenue ÷ unique invoice count. Helps you spot whether you\'re selling bigger or smaller this period.',
+    null,
+    '💵'
   );
   // Repeat customer share — NEW v0.6
   const repeatStatus = repeatCustPct >= 40 ? 'green'
@@ -3082,7 +4335,10 @@ function _renderKPIs(opts) {
     activeCustomers > 0
       ? `${repeatCustCount} of ${activeCustomers} buy 2+ times · ${repeatRevPct.toFixed(0)}% of revenue`
       : 'No data',
-    activeCustomers > 0 ? repeatStatus : 'muted'
+    activeCustomers > 0 ? repeatStatus : 'muted',
+    'Customers buying 2 or more times in scope. <code>≥40%</code> = green (loyal base), <code>20-40%</code> = amber, <code>&lt;20%</code> = red (mostly one-off).',
+    null,
+    '🔁'
   );
   // Concentration: green if balanced (<=60%), amber 60-80, red 80%+
   const concStatus = top5Pct >= 80 ? 'red' : top5Pct >= 60 ? 'amber' : 'green';
@@ -3092,7 +4348,10 @@ function _renderKPIs(opts) {
     activeCustomers >= 5
       ? `Top 5 of ${activeCustomers} customers`
       : 'Need ≥5 customers',
-    activeCustomers >= 5 ? concStatus : 'muted'
+    activeCustomers >= 5 ? concStatus : 'muted',
+    'Revenue share of your top 5 customers. <code>&lt;60%</code> = healthy spread, <code>≥80%</code> = risky concentration.',
+    null,
+    '🏆'
   );
   html3 += _kpiTile(
     'New Customers (last 90d)',
@@ -3100,7 +4359,10 @@ function _renderKPIs(opts) {
     activeCustomers > 0
       ? `${(newCount/activeCustomers*100).toFixed(0)}% of active customers · first seen since ${newCutoff}`
       : 'No data',
-    ''
+    '',
+    'Customers whose first-ever invoice is in the last 90 days of scope. Indicator of new business acquisition velocity.',
+    null,
+    '✨'
   );
   row3.innerHTML = html3;
 }
@@ -3190,8 +4452,26 @@ function _renderMonthlyChart(opts) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#C7D2FE', font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#C9C9D6',
+            font: { size: 11 },
+            padding: 12,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            boxWidth: 12,
+            boxHeight: 8
+          }
+        },
         tooltip: {
+          backgroundColor: 'rgba(24, 24, 42, 0.95)',
+          titleColor: '#FAFAFA',
+          bodyColor: '#C9C9D6',
+          borderColor: 'rgba(99,102,241,0.3)',
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
           callbacks: {
             label: (ctx) => {
               const v = ctx.parsed.y;
@@ -3203,15 +4483,15 @@ function _renderMonthlyChart(opts) {
       },
       scales: {
         x: {
-          ticks: { color: '#8B86B8', font: { size: 11 } },
-          grid: { color: 'rgba(99,102,241,0.08)' }
+          ticks: { color: '#7B7B92', font: { size: 11 } },
+          grid: { color: 'rgba(99,102,241,0.06)' }
         },
         y: {
           ticks: {
-            color: '#8B86B8', font: { size: 11 },
+            color: '#7B7B92', font: { size: 11 },
             callback: v => v >= 100 ? (v/100).toFixed(1) + ' Cr' : v + ' L'
           },
-          grid: { color: 'rgba(99,102,241,0.08)' }
+          grid: { color: 'rgba(99,102,241,0.06)' }
         }
       }
     }
@@ -3598,6 +4878,629 @@ function _renderLoyaltyProfile(opts) {
   wrap.innerHTML = html;
 }
 
+// ----- Sales Rep Leaderboard -----
+// Ranks individual sales reps by revenue contribution in scope.
+
+function _renderRepLeaderboard(opts) {
+  const { records } = opts;
+  const wrap = document.getElementById('dRepLeaderboard');
+  if (!wrap) return;
+
+  const stats = {};
+  for (const r of records) {
+    const k = (r.salesEmp || '(unassigned)').trim() || '(unassigned)';
+    if (!stats[k]) stats[k] = { rev: 0, invoices: new Set(), customers: new Set() };
+    stats[k].rev += (r.netValueINR || 0);
+    if (r.docNumber) stats[k].invoices.add(r.docNumber);
+    if (r.customerClean) stats[k].customers.add(r.customerClean);
+  }
+
+  const list = Object.entries(stats).map(([name, s]) => ({
+    name,
+    rev: s.rev,
+    invoices: s.invoices.size,
+    customers: s.customers.size,
+    avgDeal: s.invoices.size > 0 ? s.rev / s.invoices.size : 0
+  })).sort((a, b) => b.rev - a.rev);
+
+  if (list.length === 0) {
+    wrap.innerHTML = '<div class="empty">No sales rep data in this scope.</div>';
+    return;
+  }
+
+  const totalRev = list.reduce((s, x) => s + x.rev, 0);
+  const maxRev = Math.max(...list.map(x => x.rev), 1);
+
+  let html = `<table class="top-n">
+    <thead><tr>
+      <th style="width:30px">#</th>
+      <th>Sales Rep</th>
+      <th class="num">Customers</th>
+      <th class="num">Invoices</th>
+      <th class="num">Avg Deal</th>
+      <th class="num">Revenue</th>
+      <th class="num" style="min-width:100px">Share</th>
+    </tr></thead><tbody>`;
+
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i];
+    const sharePct = totalRev > 0 ? (r.rev / totalRev * 100) : 0;
+    const barW = (r.rev / maxRev * 100);
+    html += `<tr>
+      <td><span class="rank">${i + 1}</span></td>
+      <td>${escapeHTML(r.name)}</td>
+      <td class="num">${r.customers}</td>
+      <td class="num">${r.invoices}</td>
+      <td class="num">${fmtINR(r.avgDeal)}</td>
+      <td class="num"><strong>${fmtINR(r.rev)}</strong></td>
+      <td class="num">
+        <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+          <span class="achv-bar" style="width:80px"><span class="achv-bar-fill achv-fill-green" style="width:${barW.toFixed(1)}%;background:linear-gradient(90deg, var(--indigo-bright), var(--violet))"></span></span>
+          <span style="font-variant-numeric:tabular-nums;min-width:38px;text-align:right">${sharePct.toFixed(1)}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ----- Product Mix Donut Chart -----
+
+let _mixDonutInst = null;
+function _renderProductMixDonut(opts) {
+  const { records } = opts;
+  const ctx = document.getElementById('dMixDonut');
+  const legendEl = document.getElementById('dMixLegend');
+  if (!ctx || !legendEl) return;
+
+  // Aggregate by brand
+  const brandRev = {};
+  for (const b of BRANDS) brandRev[b] = 0;
+  let otherRev = 0;
+  for (const r of records) {
+    if (BRANDS.includes(r.brand)) {
+      brandRev[r.brand] += (r.netValueINR || 0);
+    } else {
+      otherRev += (r.netValueINR || 0);
+    }
+  }
+  if (otherRev > 0) brandRev['Other'] = otherRev;
+
+  const labels = Object.keys(brandRev).filter(b => brandRev[b] > 0);
+  const data = labels.map(b => brandRev[b]);
+  const total = data.reduce((s, v) => s + v, 0);
+
+  // Brand colors aligned with pill styles
+  const colorMap = {
+    'BrightSign': '#6366F1',   // indigo
+    'tvONE':      '#10B981',   // emerald
+    'Green Hippo':'#84CC16',   // lime
+    'Other':      '#64748B'    // slate
+  };
+  const colors = labels.map(b => colorMap[b] || '#94A3B8');
+
+  if (_mixDonutInst) _mixDonutInst.destroy();
+
+  if (total === 0) {
+    legendEl.innerHTML = '<div class="empty text-muted" style="padding:24px">No revenue in this scope.</div>';
+    return;
+  }
+
+  _mixDonutInst = new Chart(ctx.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderColor: 'var(--bg-1)',
+        borderWidth: 2,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => `${c.label}: ${fmtINR(c.parsed)} (${(c.parsed/total*100).toFixed(1)}%)`
+          }
+        }
+      }
+    }
+  });
+
+  // Custom HTML legend (more readable than Chart.js default)
+  let legHtml = '<div style="display:grid;grid-template-columns:1fr;gap:8px;font-size:13px">';
+  for (let i = 0; i < labels.length; i++) {
+    const pct = (data[i] / total * 100).toFixed(1);
+    legHtml += `<div style="display:flex;align-items:center;gap:10px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0"></span>
+      <span style="flex:1;color:var(--text-1)">${escapeHTML(labels[i])}</span>
+      <span style="font-variant-numeric:tabular-nums;color:var(--text-2);font-size:11.5px">${pct}%</span>
+      <span style="font-variant-numeric:tabular-nums;color:var(--text-0);font-weight:600;min-width:80px;text-align:right">${fmtINR(data[i])}</span>
+    </div>`;
+  }
+  legHtml += '</div>';
+  legendEl.innerHTML = legHtml;
+}
+
+// ============= EXCEL EXPORT (Phase 4 — v0.9) =============
+// Generates a polished multi-sheet workbook for sharing with the reviewer.
+// Uses xlsx-js-style@1.2.0 (loaded via CDN) to preserve cell styling.
+//
+// Sheets produced:
+//   1. Summary       — headline KPIs, brand performance matrix, narrative summary
+//   2. Brand Detail  — one row per brand with full metrics
+//   3. Top Customers — ranked list with revenue, repeat orders, brand split
+//   4. Top Products  — top selling models, brand-tagged, qty + revenue
+//   5. Sales Reps    — leaderboard with revenue / customers / invoices / avg deal
+//   6. Monthly Trend — last 12 months by brand
+//   7. Loyalty       — frequency distribution + most loyal customers
+//
+// Design grammar follows your existing Excel templates:
+//   - Deep indigo title bar (#1E1B4B), violet section headers (#312E81)
+//   - Lavender label cells, pale lavender data emphasis
+//   - Bright violet for totals (#7C3AED)
+//   - Consolas mono for IDs, Inter for everything else
+//   - Auto-filter on data tables, freeze panes on first row, landscape print
+
+async function downloadDashboardExcel() {
+  // Pull the same data the dashboard uses
+  const fy = document.getElementById('dFY')?.value || DEFAULT_TARGET_FY;
+  const brand = document.getElementById('dBrand')?.value || '';
+  const excludeDemo = document.getElementById('dExcludeDemo')?.checked ?? true;
+  const asOf = document.getElementById('dAsOf')?.value || new Date().toISOString().slice(0, 10);
+
+  const allSales = await db.sales.toArray();
+  const allTargets = await db.targets.where('fiscalYear').equals(fy).toArray();
+  const records = _filterRecords(allSales, { fy, brand, excludeDemo, asOf });
+
+  // ---- Aggregate everything ----
+  const ytdActual = _sumBy(records);
+  const monthsElapsed = Pace.monthsElapsed(fy, new Date(asOf));
+  const portTgt = allTargets.find(t => t.scope === 'portfolio' && t.scopeKey === 'All');
+  const portAnnual = portTgt?.annualTarget ?? null;
+  const runRate = _runRateForecast(ytdActual, monthsElapsed);
+
+  // Brand stats
+  const brandRows = BRANDS.map(b => {
+    const tgt = allTargets.find(t => t.scope === 'brand' && t.scopeKey === b);
+    const ann = tgt?.annualTarget ?? null;
+    const pace = ann !== null ? Pace.linearPace(ann, fy, new Date(asOf)) : null;
+    const actual = _sumBy(records.filter(r => r.brand === b));
+    const ach = (pace !== null && pace > 0) ? (actual / pace) * 100 : null;
+    const rr = _runRateForecast(actual, monthsElapsed);
+    return {
+      brand: b, target: ann, actual, pace, achievement: ach, runRate: rr,
+      gap: ann !== null ? ann - actual : null
+    };
+  });
+
+  // Customer aggregation
+  const custMap = {};
+  for (const r of records) {
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!custMap[c]) {
+      custMap[c] = { name: c, rev: 0, qty: 0, invoices: new Set(),
+                     brands: new Set(), state: r.stateName || r.stateCode || '' };
+    }
+    custMap[c].rev += (r.netValueINR || 0);
+    custMap[c].qty += (r.quantity || 0);
+    if (r.docNumber) custMap[c].invoices.add(r.docNumber);
+    if (r.brand) custMap[c].brands.add(r.brand);
+  }
+  const topCustomers = Object.values(custMap).map(c => ({
+    name: c.name, rev: c.rev, qty: c.qty,
+    invoices: c.invoices.size, brands: [...c.brands].join(', '),
+    state: c.state
+  })).sort((a, b) => b.rev - a.rev).slice(0, 50);
+
+  // Product aggregation
+  const prodMap = {};
+  for (const r of records) {
+    const k = r.productModel || r.itemDesc || '(unknown)';
+    if (!prodMap[k]) {
+      prodMap[k] = { model: k, brand: r.brand || 'Other', rev: 0, qty: 0, customers: new Set() };
+    }
+    prodMap[k].rev += (r.netValueINR || 0);
+    prodMap[k].qty += (r.quantity || 0);
+    if (r.customerClean) prodMap[k].customers.add(r.customerClean);
+  }
+  const topProducts = Object.values(prodMap).map(p => ({
+    model: p.model, brand: p.brand, rev: p.rev, qty: p.qty,
+    customers: p.customers.size
+  })).sort((a, b) => b.rev - a.rev).slice(0, 30);
+
+  // Sales rep aggregation
+  const repMap = {};
+  for (const r of records) {
+    const k = (r.salesEmp || '(unassigned)').trim() || '(unassigned)';
+    if (!repMap[k]) repMap[k] = { name: k, rev: 0, invoices: new Set(), customers: new Set() };
+    repMap[k].rev += (r.netValueINR || 0);
+    if (r.docNumber) repMap[k].invoices.add(r.docNumber);
+    if (r.customerClean) repMap[k].customers.add(r.customerClean);
+  }
+  const reps = Object.values(repMap).map(r => ({
+    name: r.name, rev: r.rev, invoices: r.invoices.size,
+    customers: r.customers.size,
+    avgDeal: r.invoices.size > 0 ? r.rev / r.invoices.size : 0
+  })).sort((a, b) => b.rev - a.rev);
+
+  // Monthly trend (12 months trailing)
+  const trailingMonths = _getTrailingMonths(asOf, 12);
+  const monthlyRows = trailingMonths.map(mw => {
+    const monthRecs = _filterRecords(allSales, { excludeDemo: true, from: mw.from, to: mw.to, brand });
+    const row = { month: mw.label, total: _sumBy(monthRecs) };
+    for (const b of BRANDS) {
+      row[b] = monthRecs.filter(r => r.brand === b).reduce((s, r) => s + (r.netValueINR || 0), 0);
+    }
+    return row;
+  });
+
+  // Loyalty buckets
+  const invByCust = {};
+  const revByCust = {};
+  for (const r of records) {
+    const c = r.customerClean;
+    if (!c) continue;
+    if (!invByCust[c]) invByCust[c] = new Set();
+    invByCust[c].add(r.docNumber);
+    revByCust[c] = (revByCust[c] || 0) + (r.netValueINR || 0);
+  }
+  const totalCusts = Object.keys(invByCust).length;
+  const totalRev = Object.values(revByCust).reduce((s, v) => s + v, 0);
+  const buckets = [
+    { label: '1× (single)',  custs: [], rev: 0 },
+    { label: '2×',           custs: [], rev: 0 },
+    { label: '3×',           custs: [], rev: 0 },
+    { label: '4× or more',   custs: [], rev: 0 }
+  ];
+  for (const [c, set] of Object.entries(invByCust)) {
+    const n = set.size;
+    const rev = revByCust[c];
+    const idx = n === 1 ? 0 : n === 2 ? 1 : n === 3 ? 2 : 3;
+    buckets[idx].custs.push({ name: c, count: n, rev });
+    buckets[idx].rev += rev;
+  }
+  const topLoyal = Object.entries(invByCust)
+    .map(([c, s]) => ({ name: c, count: s.size, rev: revByCust[c] }))
+    .filter(x => x.count >= 2)
+    .sort((a, b) => b.count - a.count || b.rev - a.rev)
+    .slice(0, 15);
+
+  // ---- Build workbook ----
+  const wb = XLSX.utils.book_new();
+
+  // Style helpers
+  const indigoHeavy = '1E1B4B';
+  const indigoMid = '312E81';
+  const violetBright = '7C3AED';
+  const lavender = 'C7D2FE';
+  const lavenderPale = 'EEF2FF';
+  const lavenderSoft = 'F5F3FF';
+  const greenAccent = '059669';
+  const redAccent = 'DC2626';
+
+  const titleStyle = {
+    font: { name: 'Inter', sz: 18, bold: true, color: { rgb: 'FFFFFF' } },
+    fill: { patternType: 'solid', fgColor: { rgb: indigoHeavy } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: { bottom: { style: 'medium', color: { rgb: violetBright } } }
+  };
+  const subtitleStyle = {
+    font: { name: 'Inter', sz: 11, italic: true, color: { rgb: lavender } },
+    fill: { patternType: 'solid', fgColor: { rgb: indigoHeavy } },
+    alignment: { horizontal: 'left', vertical: 'center' }
+  };
+  const sectionHeaderStyle = {
+    font: { name: 'Inter', sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
+    fill: { patternType: 'solid', fgColor: { rgb: indigoMid } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: { bottom: { style: 'thin', color: { rgb: violetBright } } }
+  };
+  const colHeaderStyle = {
+    font: { name: 'Inter', sz: 10, bold: true, color: { rgb: indigoHeavy } },
+    fill: { patternType: 'solid', fgColor: { rgb: lavender } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: { bottom: { style: 'thin', color: { rgb: indigoMid } } }
+  };
+  const colHeaderRightStyle = { ...colHeaderStyle, alignment: { horizontal: 'right', vertical: 'center' } };
+  const labelStyle = {
+    font: { name: 'Inter', sz: 10, bold: true, color: { rgb: indigoHeavy } },
+    fill: { patternType: 'solid', fgColor: { rgb: lavenderPale } },
+    alignment: { horizontal: 'left', vertical: 'center' }
+  };
+  const valueStyle = {
+    font: { name: 'Inter', sz: 10, color: { rgb: '111111' } },
+    alignment: { horizontal: 'right', vertical: 'center' },
+    numFmt: '"\u20B9"#,##,##,##0'
+  };
+  const totalStyle = {
+    font: { name: 'Inter', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+    fill: { patternType: 'solid', fgColor: { rgb: violetBright } },
+    alignment: { horizontal: 'right', vertical: 'center' },
+    numFmt: '"\u20B9"#,##,##,##0'
+  };
+  const totalLabelStyle = {
+    font: { name: 'Inter', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+    fill: { patternType: 'solid', fgColor: { rgb: violetBright } },
+    alignment: { horizontal: 'left', vertical: 'center' }
+  };
+  const monoCellStyle = {
+    font: { name: 'Consolas', sz: 9, color: { rgb: '111111' } },
+    alignment: { horizontal: 'left', vertical: 'center' }
+  };
+  const pctStyle = {
+    font: { name: 'Inter', sz: 10, color: { rgb: '111111' } },
+    alignment: { horizontal: 'right', vertical: 'center' },
+    numFmt: '0.0%'
+  };
+  const greenStyle = { font: { name: 'Inter', sz: 10, bold: true, color: { rgb: greenAccent } }, alignment: { horizontal: 'right' }, numFmt: '0.0%' };
+  const redStyle = { font: { name: 'Inter', sz: 10, bold: true, color: { rgb: redAccent } }, alignment: { horizontal: 'right' }, numFmt: '0.0%' };
+  const tagline = 'Cavitak Marketing · Personal Portfolio P&L · BrightSign · tvONE · Green Hippo';
+
+  // Helper to set a cell with style
+  function setCell(ws, addr, value, style) {
+    ws[addr] = { v: value, t: typeof value === 'number' ? 'n' : 's', s: style };
+  }
+
+  // ---- Sheet 1: Summary ----
+  const s1 = {};
+  s1['!ref'] = 'A1:F30';
+  s1['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
+  s1['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },  // Title
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },  // Subtitle
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } },  // Section: Headline
+    { s: { r: 13, c: 0 }, e: { r: 13, c: 5 } } // Section: Brand
+  ];
+  setCell(s1, 'A1', 'Cavitak Sales Review · ' + fy + (brand ? ' · ' + brand : ''), titleStyle);
+  setCell(s1, 'A2', `Generated ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} · As of ${asOf} · ${monthsElapsed.toFixed(1)} of 12 months elapsed`, subtitleStyle);
+  s1['!rows'] = [{ hpt: 32 }, { hpt: 22 }];
+
+  // Headline section
+  setCell(s1, 'A5', '  HEADLINE METRICS', sectionHeaderStyle);
+
+  const headlineRows = [
+    ['Portfolio Revenue YTD', ytdActual],
+    ['Run-Rate FY Forecast', runRate || 0],
+    ['FY Target', portAnnual || 0],
+    ['Months Elapsed', monthsElapsed.toFixed(1) + ' of 12'],
+    ['Active Customers', totalCusts],
+    ['Total Invoices', new Set(records.map(r => r.docNumber)).size],
+    ['Average Deal Size', new Set(records.map(r => r.docNumber)).size > 0 ? ytdActual / new Set(records.map(r => r.docNumber)).size : 0]
+  ];
+  let row = 7;
+  for (const [label, value] of headlineRows) {
+    setCell(s1, `A${row}`, label, labelStyle);
+    if (typeof value === 'number') {
+      setCell(s1, `B${row}`, value, valueStyle);
+    } else {
+      setCell(s1, `B${row}`, value, { ...valueStyle, numFmt: '@' });
+    }
+    row++;
+  }
+
+  // Brand performance section
+  setCell(s1, 'A14', '  BRAND PERFORMANCE', sectionHeaderStyle);
+  const brandHeaders = ['Brand', 'FY Target', 'YTD Actual', 'Pace', 'Achievement', 'Run-Rate Forecast'];
+  brandHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s1, `${col}16`, h, i === 0 ? colHeaderStyle : colHeaderRightStyle);
+  });
+  let r = 17;
+  for (const b of brandRows) {
+    setCell(s1, `A${r}`, b.brand, labelStyle);
+    setCell(s1, `B${r}`, b.target || 0, valueStyle);
+    setCell(s1, `C${r}`, b.actual, valueStyle);
+    setCell(s1, `D${r}`, b.pace || 0, valueStyle);
+    setCell(s1, `E${r}`, b.achievement !== null ? b.achievement / 100 : 0,
+      b.achievement !== null && b.achievement >= 95 ? greenStyle :
+      b.achievement !== null && b.achievement < 80 ? redStyle : pctStyle);
+    setCell(s1, `F${r}`, b.runRate || 0, valueStyle);
+    r++;
+  }
+  // Total row
+  setCell(s1, `A${r}`, 'TOTAL PORTFOLIO', totalLabelStyle);
+  setCell(s1, `B${r}`, portAnnual || 0, totalStyle);
+  setCell(s1, `C${r}`, ytdActual, totalStyle);
+  setCell(s1, `D${r}`, portAnnual !== null ? Pace.linearPace(portAnnual, fy, new Date(asOf)) : 0, totalStyle);
+  setCell(s1, `E${r}`, '', totalStyle);
+  setCell(s1, `F${r}`, runRate || 0, totalStyle);
+
+  s1['!ref'] = `A1:F${r + 1}`;
+  XLSX.utils.book_append_sheet(wb, s1, 'Summary');
+
+  // ---- Sheet 2: Top Customers ----
+  const s2 = {};
+  s2['!cols'] = [{ wch: 5 }, { wch: 45 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 22 }, { wch: 14 }];
+  setCell(s2, 'A1', 'Top 50 Customers · ' + fy + (brand ? ' · ' + brand : ''), titleStyle);
+  setCell(s2, 'A2', tagline, subtitleStyle);
+  s2['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }
+  ];
+  s2['!rows'] = [{ hpt: 32 }, { hpt: 22 }];
+  const cHeaders = ['Rank', 'Customer', 'Revenue', 'Qty', 'Invoices', 'Brands', 'State'];
+  cHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s2, `${col}4`, h, i === 0 ? colHeaderStyle :
+            (i === 2 || i === 3 || i === 4) ? colHeaderRightStyle : colHeaderStyle);
+  });
+  topCustomers.forEach((c, i) => {
+    const r = i + 5;
+    setCell(s2, `A${r}`, i + 1, { ...valueStyle, alignment: { horizontal: 'center' }, numFmt: '0' });
+    setCell(s2, `B${r}`, c.name, labelStyle);
+    setCell(s2, `C${r}`, c.rev, valueStyle);
+    setCell(s2, `D${r}`, c.qty, { ...valueStyle, numFmt: '#,##0' });
+    setCell(s2, `E${r}`, c.invoices, { ...valueStyle, numFmt: '0' });
+    setCell(s2, `F${r}`, c.brands, { ...valueStyle, alignment: { horizontal: 'left' }, numFmt: '@' });
+    setCell(s2, `G${r}`, c.state, { ...valueStyle, alignment: { horizontal: 'left' }, numFmt: '@' });
+  });
+  s2['!ref'] = `A1:G${topCustomers.length + 5}`;
+  s2['!autofilter'] = { ref: `A4:G${topCustomers.length + 4}` };
+  s2['!freeze'] = { xSplit: 0, ySplit: 4 };
+  XLSX.utils.book_append_sheet(wb, s2, 'Top Customers');
+
+  // ---- Sheet 3: Top Products ----
+  const s3 = {};
+  s3['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 35 }, { wch: 10 }, { wch: 14 }, { wch: 12 }];
+  setCell(s3, 'A1', 'Top 30 Products · ' + fy + (brand ? ' · ' + brand : ''), titleStyle);
+  setCell(s3, 'A2', tagline, subtitleStyle);
+  s3['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }
+  ];
+  s3['!rows'] = [{ hpt: 32 }, { hpt: 22 }];
+  const pHeaders = ['Rank', 'Brand', 'Model', 'Qty', 'Revenue', 'Customers'];
+  pHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s3, `${col}4`, h, (i === 3 || i === 4 || i === 5) ? colHeaderRightStyle : colHeaderStyle);
+  });
+  topProducts.forEach((p, i) => {
+    const r = i + 5;
+    setCell(s3, `A${r}`, i + 1, { ...valueStyle, alignment: { horizontal: 'center' }, numFmt: '0' });
+    setCell(s3, `B${r}`, p.brand, labelStyle);
+    setCell(s3, `C${r}`, p.model, monoCellStyle);
+    setCell(s3, `D${r}`, p.qty, { ...valueStyle, numFmt: '#,##0' });
+    setCell(s3, `E${r}`, p.rev, valueStyle);
+    setCell(s3, `F${r}`, p.customers, { ...valueStyle, numFmt: '0' });
+  });
+  s3['!ref'] = `A1:F${topProducts.length + 5}`;
+  s3['!autofilter'] = { ref: `A4:F${topProducts.length + 4}` };
+  s3['!freeze'] = { xSplit: 0, ySplit: 4 };
+  XLSX.utils.book_append_sheet(wb, s3, 'Top Products');
+
+  // ---- Sheet 4: Sales Reps ----
+  const s4 = {};
+  s4['!cols'] = [{ wch: 5 }, { wch: 35 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+  setCell(s4, 'A1', 'Sales Rep Leaderboard · ' + fy + (brand ? ' · ' + brand : ''), titleStyle);
+  setCell(s4, 'A2', tagline, subtitleStyle);
+  s4['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }
+  ];
+  s4['!rows'] = [{ hpt: 32 }, { hpt: 22 }];
+  const repHeaders = ['Rank', 'Sales Rep', 'Customers', 'Invoices', 'Avg Deal', 'Revenue'];
+  repHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s4, `${col}4`, h, (i >= 2) ? colHeaderRightStyle : colHeaderStyle);
+  });
+  reps.forEach((rep, i) => {
+    const r = i + 5;
+    setCell(s4, `A${r}`, i + 1, { ...valueStyle, alignment: { horizontal: 'center' }, numFmt: '0' });
+    setCell(s4, `B${r}`, rep.name, labelStyle);
+    setCell(s4, `C${r}`, rep.customers, { ...valueStyle, numFmt: '0' });
+    setCell(s4, `D${r}`, rep.invoices, { ...valueStyle, numFmt: '0' });
+    setCell(s4, `E${r}`, rep.avgDeal, valueStyle);
+    setCell(s4, `F${r}`, rep.rev, valueStyle);
+  });
+  // Total row
+  const repTotalRow = reps.length + 5;
+  const repTotalRev = reps.reduce((s, x) => s + x.rev, 0);
+  const repTotalInv = reps.reduce((s, x) => s + x.invoices, 0);
+  const repTotalCust = reps.reduce((s, x) => s + x.customers, 0);
+  setCell(s4, `A${repTotalRow}`, '', totalLabelStyle);
+  setCell(s4, `B${repTotalRow}`, 'TOTAL', totalLabelStyle);
+  setCell(s4, `C${repTotalRow}`, repTotalCust, totalStyle);
+  setCell(s4, `D${repTotalRow}`, repTotalInv, totalStyle);
+  setCell(s4, `E${repTotalRow}`, repTotalInv > 0 ? repTotalRev / repTotalInv : 0, totalStyle);
+  setCell(s4, `F${repTotalRow}`, repTotalRev, totalStyle);
+  s4['!ref'] = `A1:F${repTotalRow}`;
+  s4['!autofilter'] = { ref: `A4:F${reps.length + 4}` };
+  s4['!freeze'] = { xSplit: 0, ySplit: 4 };
+  XLSX.utils.book_append_sheet(wb, s4, 'Sales Reps');
+
+  // ---- Sheet 5: Monthly Trend ----
+  const s5 = {};
+  s5['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+  setCell(s5, 'A1', 'Monthly Revenue Trend · Trailing 12 Months', titleStyle);
+  setCell(s5, 'A2', tagline, subtitleStyle);
+  s5['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }
+  ];
+  s5['!rows'] = [{ hpt: 32 }, { hpt: 22 }];
+  const mHeaders = ['Month', 'Total', 'BrightSign', 'tvONE', 'Green Hippo'];
+  mHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s5, `${col}4`, h, i === 0 ? colHeaderStyle : colHeaderRightStyle);
+  });
+  monthlyRows.forEach((m, i) => {
+    const r = i + 5;
+    setCell(s5, `A${r}`, m.month, labelStyle);
+    setCell(s5, `B${r}`, m.total, valueStyle);
+    setCell(s5, `C${r}`, m.BrightSign || 0, valueStyle);
+    setCell(s5, `D${r}`, m.tvONE || 0, valueStyle);
+    setCell(s5, `E${r}`, m['Green Hippo'] || 0, valueStyle);
+  });
+  s5['!ref'] = `A1:E${monthlyRows.length + 4}`;
+  s5['!freeze'] = { xSplit: 0, ySplit: 4 };
+  XLSX.utils.book_append_sheet(wb, s5, 'Monthly Trend');
+
+  // ---- Sheet 6: Loyalty ----
+  const s6 = {};
+  s6['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+  setCell(s6, 'A1', 'Customer Loyalty Profile · ' + fy + (brand ? ' · ' + brand : ''), titleStyle);
+  setCell(s6, 'A2', tagline, subtitleStyle);
+  s6['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } },
+    { s: { r: 13, c: 0 }, e: { r: 13, c: 4 } }
+  ];
+  s6['!rows'] = [{ hpt: 32 }, { hpt: 22 }];
+  setCell(s6, 'A5', '  ORDER FREQUENCY DISTRIBUTION', sectionHeaderStyle);
+  const lHeaders = ['Order Count', '# Customers', '% of Base', 'Revenue', '% of Revenue'];
+  lHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s6, `${col}7`, h, i === 0 ? colHeaderStyle : colHeaderRightStyle);
+  });
+  buckets.forEach((b, i) => {
+    const r = i + 8;
+    setCell(s6, `A${r}`, b.label, labelStyle);
+    setCell(s6, `B${r}`, b.custs.length, { ...valueStyle, numFmt: '0' });
+    setCell(s6, `C${r}`, totalCusts > 0 ? b.custs.length / totalCusts : 0, pctStyle);
+    setCell(s6, `D${r}`, b.rev, valueStyle);
+    setCell(s6, `E${r}`, totalRev > 0 ? b.rev / totalRev : 0, pctStyle);
+  });
+  // Repeat total
+  const repeatCusts = totalCusts - buckets[0].custs.length;
+  const repeatRev = totalRev - buckets[0].rev;
+  setCell(s6, 'A12', 'Repeat (2× or more)', totalLabelStyle);
+  setCell(s6, 'B12', repeatCusts, totalStyle);
+  setCell(s6, 'C12', totalCusts > 0 ? repeatCusts / totalCusts : 0, { ...totalStyle, numFmt: '0.0%' });
+  setCell(s6, 'D12', repeatRev, totalStyle);
+  setCell(s6, 'E12', totalRev > 0 ? repeatRev / totalRev : 0, { ...totalStyle, numFmt: '0.0%' });
+
+  setCell(s6, 'A14', '  TOP 15 MOST LOYAL CUSTOMERS', sectionHeaderStyle);
+  const llHeaders = ['Rank', 'Customer', 'Orders', 'Revenue'];
+  llHeaders.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i);
+    setCell(s6, `${col}16`, h, (i === 2 || i === 3) ? colHeaderRightStyle : colHeaderStyle);
+  });
+  topLoyal.forEach((x, i) => {
+    const r = i + 17;
+    setCell(s6, `A${r}`, i + 1, { ...valueStyle, alignment: { horizontal: 'center' }, numFmt: '0' });
+    setCell(s6, `B${r}`, x.name, labelStyle);
+    setCell(s6, `C${r}`, x.count, { ...valueStyle, numFmt: '0' });
+    setCell(s6, `D${r}`, x.rev, valueStyle);
+  });
+  s6['!ref'] = `A1:E${topLoyal.length + 17}`;
+  XLSX.utils.book_append_sheet(wb, s6, 'Loyalty');
+
+  // ---- Save ----
+  const filename = `Cavitak_Sales_Review_${fy}${brand ? '_' + brand.replace(/\s/g, '') : ''}_${asOf.replace(/-/g, '')}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  return filename;
+}
+
 // ----- Master orchestrator -----
 
 let _dashboardMode = 'ytd';   // 'ytd' or 'range'
@@ -3701,6 +5604,9 @@ async function renderDashboard() {
     targets: allTargets, allTargets, monthsElapsed, holderMap
   };
 
+  _renderExecSummary(opts);
+  _renderHero(opts);
+  _renderQuickNumbers(opts);
   _renderKPIs(opts);
   _renderBrandMatrix(opts);
   _renderMonthlyChart(opts);
@@ -3709,6 +5615,28 @@ async function renderDashboard() {
   await _renderHierarchy(opts);
   _renderCustomerFlow(opts);
   _renderLoyaltyProfile(opts);
+  _renderRepLeaderboard(opts);
+  _renderProductMixDonut(opts);
+}
+
+// Get the trailing N month windows ending at the month containing asOfStr.
+// Returns array of { from, to, label } in chronological order (oldest first).
+// Used by sparklines to show 12-month trailing trend.
+function _getTrailingMonths(asOfStr, n = 12) {
+  const asOf = new Date(asOfStr);
+  if (isNaN(asOf.getTime())) return [];
+  const out = [];
+  // Anchor month = the month containing asOf (we include partial current month)
+  const anchorYear = asOf.getFullYear();
+  const anchorMonth = asOf.getMonth();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(anchorYear, anchorMonth - i, 1);
+    const from = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+    const to   = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    out.push({ from, to, label });
+  }
+  return out;
 }
 
 // Cross-FY-aware "last full month" from a given asOf date.
@@ -4038,6 +5966,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnRefreshDash').addEventListener('click', async () => {
     await populateDashboardFYSelector();
     await renderDashboard();
+  });
+
+  // Excel download button
+  document.getElementById('btnExcelDash').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const oldText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Generating…';
+    try {
+      const filename = await downloadDashboardExcel();
+      btn.innerHTML = '✓ Downloaded';
+      setTimeout(() => { btn.innerHTML = oldText; btn.disabled = false; }, 2000);
+      console.log('Generated', filename);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      btn.innerHTML = '✗ Failed';
+      alert('Excel generation failed: ' + (err.message || String(err)) + '\n\nIf this persists, ensure xlsx-js-style loaded — check browser console.');
+      setTimeout(() => { btn.innerHTML = oldText; btn.disabled = false; }, 3000);
+    }
   });
 
   // When the Dashboard tab is clicked, populate FY selector + render fresh
